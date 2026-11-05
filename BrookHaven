@@ -23,12 +23,19 @@ if PG:FindFirstChild("CubnitOmni_Final") then PG.CubnitOmni_Final:Destroy() end
 
 -- === INTERFACE === --
 local sg = create("ScreenGui", PG, { Name = "CubnitOmni_Final", ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 999 })
+
+-- [SPWN] Atributos de identificação persistente
+sg:SetAttribute("SPWN_ManagedScriptID", "CubnitOmniScript")
+sg:SetAttribute("SPWN_ManagedScriptName", "Inspecionar Avatar")
+sg:SetAttribute("SPWN_ManagedScriptCategory", "Inspecionar Avatar")
+
 local currentId, currentInspectedData, currentInspectedName, currentTab, activeRenameId = nil, nil, "", "Players", nil
 
 local main = create("Frame", sg, { Size = UDim2.new(0, 380, 0, 320), Position = UDim2.new(0.5, -190, 0.5, -160), BackgroundColor3 = Color3.fromRGB(0, 0, 0), Visible = false, ZIndex = 100 }, 8)
 create("UIStroke", main, { Color = Color3.fromRGB(255, 255, 255), Thickness = 3 })
 
-local launcher = create("ImageButton", sg, { Size = UDim2.new(0, 70, 0, 70), Position = UDim2.new(0.05, 0, 0.4, 0), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, Image = "rbxassetid://88903575940312", ScaleType = Enum.ScaleType.Fit, ZIndex = 1000 })
+-- [SPWN] Launcher renomeado para OpenToggleButton (o Manager atua nele)
+local launcher = create("ImageButton", sg, { Name = "OpenToggleButton", Size = UDim2.new(0, 70, 0, 70), Position = UDim2.new(0.05, 0, 0.4, 0), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, Image = "rbxassetid://88903575940312", ScaleType = Enum.ScaleType.Fit, ZIndex = 1000 })
 local dStart, sPos, dragging, hasMoved = nil, nil, false, false
 
 -- Cabeçalho e Botões
@@ -250,3 +257,52 @@ Players.PlayerAdded:Connect(autoUpdateList)
 Players.PlayerRemoving:Connect(autoUpdateList)
 
 print("CUBNIT OMNI v31.10 - Fixed Initial View & Return Actions.")
+
+--------------------------------------------------
+-- [SPWN] ADAPTADOR PERSISTENTE
+--------------------------------------------------
+task.spawn(function()
+    local scriptId = "CubnitOmniScript"
+    local scriptConfig = {
+        Name = "Inspecionar Avatar",
+        Category = "Inspecionar Avatar",
+        GuiObject = sg,
+        OnDestroy = function()
+            -- [SPWN] Espelha closeButton original: apenas destrói a ScreenGui.
+            -- NÃO limpa o arquivo JSON (CubnitOmni_SavedAvatars.json) —
+            -- os avatares salvos pelo usuário DEVEM persistir entre sessões.
+            pcall(function() sg:Destroy() end)
+        end
+    }
+
+    -- Garante a persistência global na memória
+    _G.ScriptManagerQueue = _G.ScriptManagerQueue or {}
+    _G.RegisteredScriptDatabase = _G.RegisteredScriptDatabase or {}
+
+    -- [SPWN] Lê visibilidade persistida em vez de hardcoded true
+    local persistedVis = sg:GetAttribute("SPWN_ManagedVisibility")
+
+    _G.RegisteredScriptDatabase[scriptId] = {
+        Name = scriptConfig.Name,
+        Category = scriptConfig.Category,
+        GuiObject = scriptConfig.GuiObject,
+        IsVisible = (persistedVis == nil) and true or persistedVis,
+        OnDestroy = scriptConfig.OnDestroy
+    }
+
+    local exists = false
+    for _, item in ipairs(_G.ScriptManagerQueue) do
+        if item.id == scriptId then
+            exists = true
+            item.config = scriptConfig
+            break
+        end
+    end
+    if not exists then
+        table.insert(_G.ScriptManagerQueue, {id = scriptId, config = scriptConfig})
+    end
+
+    if _G.ScriptManager and type(_G.ScriptManager.RegisterScript) == "function" then
+        _G.ScriptManager.RegisterScript(scriptId, scriptConfig)
+    end
+end)

@@ -4,6 +4,7 @@ local FILE_NAME, remotesFolder = "CubnitOmni_SavedAvatars.json", ReplicatedStora
 local wearRemote = remotesFolder and remotesFolder:FindFirstChild("Wear")
 
 local ARCADE_FONT = Enum.Font.Arcade
+local RUN_SERVICE = game:GetService("RunService")
 
 local function create(className, parent, props, cornerRadius)
     local inst = Instance.new(className)
@@ -102,11 +103,9 @@ local function updateVisibility()
 end
 
 -- ============================================================
--- [NOVO] SISTEMA DE PREVIEW 3D + TRY-ON INSTANTÂNEO
+-- [NOVO] SISTEMA DE PREVIEW 3D (PERFEITO) + TRY-ON INSTANTÂNEO
 -- ============================================================
 
--- Reconstruct HumanoidDescription from the "raw" table used by this script.
--- The raw table format is: { Shirt, Pants, Face, BodyParts = {Head,...}, Accessories = {id,...}, Animations = {Idle,...} }
 local function parseAssetId(val)
     if not val then return nil end
     if type(val) == "number" then return val > 0 and val or nil end
@@ -114,8 +113,117 @@ local function parseAssetId(val)
     return digits and tonumber(digits) or nil
 end
 
-local function buildDescriptionFromRaw(raw)
-    if type(raw) ~= "table" then return nil end
+local ACCESSORY_TYPE_BY_NAME = {}
+for _, t in ipairs(Enum.AccessoryType:GetEnumItems()) do
+    ACCESSORY_TYPE_BY_NAME[t.Name] = t
+end
+
+local function colorToTable(c)
+    if typeof(c) ~= "Color3" then return nil end
+    return { R = math.floor(c.R * 255 + 0.5), G = math.floor(c.G * 255 + 0.5), B = math.floor(c.B * 255 + 0.5) }
+end
+
+local function tableToColor(t)
+    if type(t) ~= "table" then return nil end
+    return Color3.fromRGB(tonumber(t.R or t.r) or 255, tonumber(t.G or t.g) or 255, tonumber(t.B or t.b) or 255)
+end
+
+local function vec3ToTable(v, fallback)
+    fallback = fallback or Vector3.zero
+    if typeof(v) ~= "Vector3" then return { X = fallback.X, Y = fallback.Y, Z = fallback.Z } end
+    return { X = v.X, Y = v.Y, Z = v.Z }
+end
+
+local function tableToVec3(t, fallback)
+    fallback = fallback or Vector3.zero
+    if type(t) ~= "table" then return fallback end
+    return Vector3.new(tonumber(t.X or t.x) or fallback.X, tonumber(t.Y or t.y) or fallback.Y, tonumber(t.Z or t.z) or fallback.Z)
+end
+
+-- Captura TUDO de uma HumanoidDescription real (incluindo cor de pele)
+local function serializeFullDescription(hum)
+    if not hum then return nil end
+    local ok, desc = pcall(function() return hum:GetAppliedDescription() end)
+    if not ok or not desc then return nil end
+
+    local data = {}
+    for _, key in ipairs({
+        "Shirt", "Pants", "GraphicTShirt", "Face", "Head", "Torso",
+        "LeftArm", "RightArm", "LeftLeg", "RightLeg",
+        "IdleAnimation", "WalkAnimation", "RunAnimation", "JumpAnimation",
+        "FallAnimation", "ClimbAnimation", "SwimAnimation", "SwimIdleAnimation", "MoodAnimation",
+    }) do
+        local ok2, v = pcall(function() return desc[key] end)
+        if ok2 and v then data[key] = v end
+    end
+
+    for _, key in ipairs({ "HeightScale", "WidthScale", "DepthScale", "BodyTypeScale", "HeadScale", "ProportionScale" }) do
+        local ok2, v = pcall(function() return desc[key] end)
+        if ok2 and v then data[key] = v end
+    end
+
+    -- ⭐ CORES DE PELE
+    for _, key in ipairs({ "HeadColor", "TorsoColor", "LeftArmColor", "RightArmColor", "LeftLegColor", "RightLegColor" }) do
+        local ok2, v = pcall(function() return desc[key] end)
+        if ok2 and v then data[key] = colorToTable(v) end
+    end
+
+    local okAcc, accessories = pcall(function() return desc:GetAccessories(true) end)
+    if okAcc and type(accessories) == "table" then
+        data.Accessories = {}
+        for _, a in ipairs(accessories) do
+            local entry = {
+                AssetId = a.AssetId,
+                AccessoryType = a.AccessoryType and a.AccessoryType.Name or "Hat",
+                IsLayered = a.IsLayered == true,
+            }
+            if a.Order ~= nil then entry.Order = a.Order end
+            if a.Puffiness ~= nil then entry.Puffiness = a.Puffiness end
+            if a.Position then entry.Position = vec3ToTable(a.Position) end
+            if a.Rotation then entry.Rotation = vec3ToTable(a.Rotation) end
+            if a.Scale then entry.Scale = vec3ToTable(a.Scale, Vector3.one) end
+            table.insert(data.Accessories, entry)
+        end
+    end
+
+    local okMk, makeups = pcall(function() return desc:GetMakeups() end)
+    if okMk and type(makeups) == "table" then
+        data.MakeupItems = {}
+        for _, m in ipairs(makeups) do
+            table.insert(data.MakeupItems, {
+                AssetId = m.AssetId,
+                MakeupType = m.MakeupType and m.MakeupType.Name or "Lip",
+                Order = m.Order or 1,
+            })
+        end
+    end
+
+    local okEm, emotes = pcall(function() return desc:GetEmotes() end)
+    if okEm and type(emotes) == "table" then data.Emotes = emotes end
+    local okEq, equipped = pcall(function() return desc:GetEquippedEmotes() end)
+    if okEq and type(equipped) == "table" then data.EquippedEmotes = equipped end
+
+    local okSh, shape = pcall(function()
+        for _, child in ipairs(desc:GetChildren()) do
+            if child:IsA("BodyPartDescription") and child.BodyPart == Enum.BodyPart.Head then
+                return child.HeadShape
+            end
+        end
+        return nil
+    end)
+    if okSh and shape and shape ~= "" then data.HeadShape = shape end
+
+    if hum.RigType then
+        data.RigType = (hum.RigType == Enum.HumanoidRigType.R6) and "R6" or "R15"
+    end
+
+    pcall(function() desc:Destroy() end)
+    return data
+end
+
+-- Reconstrói HumanoidDescription PERFEITA a partir do .Full
+local function buildDescriptionFromFull(full)
+    if type(full) ~= "table" then return nil end
     local desc = Instance.new("HumanoidDescription")
 
     local function setNum(prop, value)
@@ -123,68 +231,228 @@ local function buildDescriptionFromRaw(raw)
         if id then pcall(function() desc[prop] = id end) end
     end
 
-    setNum("Shirt", raw.Shirt)
-    setNum("Pants", raw.Pants)
-    setNum("Face", raw.Face)
-    setNum("GraphicTShirt", raw.GraphicTShirt)
-
-    if type(raw.BodyParts) == "table" then
-        setNum("Head", raw.BodyParts.Head)
-        setNum("Torso", raw.BodyParts.Torso)
-        setNum("LeftArm", raw.BodyParts.LeftArm)
-        setNum("RightArm", raw.BodyParts.RightArm)
-        setNum("LeftLeg", raw.BodyParts.LeftLeg)
-        setNum("RightLeg", raw.BodyParts.RightLeg)
+    for _, key in ipairs({
+        "Shirt", "Pants", "GraphicTShirt", "Face", "Head", "Torso",
+        "LeftArm", "RightArm", "LeftLeg", "RightLeg",
+        "IdleAnimation", "WalkAnimation", "RunAnimation", "JumpAnimation",
+        "FallAnimation", "ClimbAnimation", "SwimAnimation", "SwimIdleAnimation", "MoodAnimation",
+    }) do
+        setNum(key, full[key])
     end
 
-    if type(raw.Animations) == "table" then
-        setNum("IdleAnimation", raw.Animations.Idle)
-        setNum("WalkAnimation", raw.Animations.Walk)
-        setNum("RunAnimation", raw.Animations.Run)
-        setNum("JumpAnimation", raw.Animations.Jump)
-        setNum("FallAnimation", raw.Animations.Fall)
-        setNum("ClimbAnimation", raw.Animations.Climb)
-        setNum("SwimAnimation", raw.Animations.Swim)
-        setNum("SwimIdleAnimation", raw.Animations.SwimIdle)
-        setNum("MoodAnimation", raw.Animations.Mood)
+    for _, key in ipairs({ "HeightScale", "WidthScale", "DepthScale", "BodyTypeScale", "HeadScale", "ProportionScale" }) do
+        local v = tonumber(full[key])
+        if v then pcall(function() desc[key] = v end) end
     end
 
-    if type(raw.Accessories) == "table" then
+    for _, key in ipairs({ "HeadColor", "TorsoColor", "LeftArmColor", "RightArmColor", "LeftLegColor", "RightLegColor" }) do
+        local c = tableToColor(full[key])
+        if c then pcall(function() desc[key] = c end) end
+    end
+
+    if type(full.Accessories) == "table" then
         local accessories = {}
-        for _, accId in ipairs(raw.Accessories) do
-            local parsed = parseAssetId(accId)
-            if parsed then
-                table.insert(accessories, {
-                    AssetId = parsed,
-                    AccessoryType = Enum.AccessoryType.Hat,
-                    IsLayered = false,
-                })
+        for _, a in ipairs(full.Accessories) do
+            if type(a) == "table" and a.AssetId then
+                local entry = {
+                    AssetId = parseAssetId(a.AssetId),
+                    AccessoryType = ACCESSORY_TYPE_BY_NAME[a.AccessoryType or "Hat"] or Enum.AccessoryType.Hat,
+                    IsLayered = a.IsLayered == true,
+                }
+                if a.Order ~= nil then entry.Order = a.Order end
+                if a.Puffiness ~= nil then entry.Puffiness = a.Puffiness end
+                if a.Position then entry.Position = tableToVec3(a.Position) end
+                if a.Rotation then entry.Rotation = tableToVec3(a.Rotation) end
+                if a.Scale then entry.Scale = tableToVec3(a.Scale, Vector3.one) end
+                if entry.AssetId then table.insert(accessories, entry) end
             end
         end
-        if #accessories > 0 then
-            pcall(function() desc:SetAccessories(accessories, true) end)
+        if #accessories > 0 then pcall(function() desc:SetAccessories(accessories, true) end) end
+    end
+
+    if type(full.MakeupItems) == "table" then
+        for _, m in ipairs(full.MakeupItems) do
+            if type(m) == "table" and m.AssetId then
+                pcall(function()
+                    local makeup = Instance.new("MakeupDescription")
+                    makeup.AssetId = parseAssetId(m.AssetId)
+                    makeup.Order = m.Order or 1
+                    makeup.MakeupType = Enum.MakeupType[m.MakeupType or "Lip"] or Enum.MakeupType.Lip
+                    makeup.Parent = desc
+                end)
+            end
         end
+    end
+
+    if type(full.Emotes) == "table" then pcall(function() desc:SetEmotes(full.Emotes) end) end
+    if type(full.EquippedEmotes) == "table" then pcall(function() desc:SetEquippedEmotes(full.EquippedEmotes) end) end
+
+    if full.HeadShape and full.HeadShape ~= "" then
+        pcall(function()
+            local hp = Instance.new("BodyPartDescription")
+            hp.BodyPart = Enum.BodyPart.Head
+            hp.AssetId = desc.Head
+            hp.HeadShape = full.HeadShape
+            hp.Parent = desc
+        end)
     end
 
     return desc
 end
 
--- Detect rig type of a player (R6 vs R15) — for previews of other players
+-- FALLBACK: busca descrição COMPLETA por UserId (skins antigas sem .Full)
+local userFullDescCache = {}
+local function fetchFullDescriptionByUserId(userId)
+    if not userId or userId <= 0 then return nil end
+    if userFullDescCache[userId] ~= nil then return userFullDescCache[userId] or nil end
+    local ok, desc = pcall(function()
+        if type(Players.GetHumanoidDescriptionFromUserIdAsync) == "function" then
+            return Players:GetHumanoidDescriptionFromUserIdAsync(userId)
+        end
+        return Players:GetHumanoidDescriptionFromUserId(userId)
+    end)
+    if not ok or not desc then
+        userFullDescCache[userId] = false
+        return nil
+    end
+
+    local data = {}
+    for _, key in ipairs({
+        "Shirt", "Pants", "GraphicTShirt", "Face", "Head", "Torso",
+        "LeftArm", "RightArm", "LeftLeg", "RightLeg",
+        "IdleAnimation", "WalkAnimation", "RunAnimation", "JumpAnimation",
+        "FallAnimation", "ClimbAnimation", "SwimAnimation", "SwimIdleAnimation", "MoodAnimation",
+    }) do
+        local ok2, v = pcall(function() return desc[key] end)
+        if ok2 and v then data[key] = v end
+    end
+    for _, key in ipairs({ "HeightScale", "WidthScale", "DepthScale", "BodyTypeScale", "HeadScale", "ProportionScale" }) do
+        local ok2, v = pcall(function() return desc[key] end)
+        if ok2 and v then data[key] = v end
+    end
+    for _, key in ipairs({ "HeadColor", "TorsoColor", "LeftArmColor", "RightArmColor", "LeftLegColor", "RightLegColor" }) do
+        local ok2, v = pcall(function() return desc[key] end)
+        if ok2 and v then data[key] = colorToTable(v) end
+    end
+    local okAcc, accessories = pcall(function() return desc:GetAccessories(true) end)
+    if okAcc and type(accessories) == "table" then
+        data.Accessories = {}
+        for _, a in ipairs(accessories) do
+            local entry = {
+                AssetId = a.AssetId,
+                AccessoryType = a.AccessoryType and a.AccessoryType.Name or "Hat",
+                IsLayered = a.IsLayered == true,
+            }
+            if a.Order ~= nil then entry.Order = a.Order end
+            if a.Puffiness ~= nil then entry.Puffiness = a.Puffiness end
+            if a.Position then entry.Position = vec3ToTable(a.Position) end
+            if a.Rotation then entry.Rotation = vec3ToTable(a.Rotation) end
+            if a.Scale then entry.Scale = vec3ToTable(a.Scale, Vector3.one) end
+            table.insert(data.Accessories, entry)
+        end
+    end
+    local okMk, makeups = pcall(function() return desc:GetMakeups() end)
+    if okMk and type(makeups) == "table" then
+        data.MakeupItems = {}
+        for _, m in ipairs(makeups) do
+            table.insert(data.MakeupItems, {
+                AssetId = m.AssetId,
+                MakeupType = m.MakeupType and m.MakeupType.Name or "Lip",
+                Order = m.Order or 1,
+            })
+        end
+    end
+    local okEm, emotes = pcall(function() return desc:GetEmotes() end)
+    if okEm and type(emotes) == "table" then data.Emotes = emotes end
+    pcall(function() desc:Destroy() end)
+    userFullDescCache[userId] = data
+    return data
+end
+
+-- Reconstrói o "raw" legado a partir de um .Full
+local function rawFromFull(full)
+    if type(full) ~= "table" then return nil end
+    local raw = {
+        Shirt = full.Shirt or 0, Pants = full.Pants or 0, Face = full.Face or 0,
+        Accessories = {},
+        BodyParts = {
+            Head = full.Head or 0, Torso = full.Torso or 0,
+            LeftArm = full.LeftArm or 0, RightArm = full.RightArm or 0,
+            LeftLeg = full.LeftLeg or 0, RightLeg = full.RightLeg or 0,
+        },
+        Animations = {
+            Idle = full.IdleAnimation or 0, Walk = full.WalkAnimation or 0,
+            Run = full.RunAnimation or 0, Jump = full.JumpAnimation or 0,
+            Fall = full.FallAnimation or 0, Climb = full.ClimbAnimation or 0,
+            Swim = full.SwimAnimation or 0,
+        },
+        Full = full,
+    }
+    if type(full.Accessories) == "table" then
+        for _, a in ipairs(full.Accessories) do
+            if type(a) == "table" and a.AssetId then table.insert(raw.Accessories, a.AssetId) end
+        end
+    end
+    return raw
+end
+
+local function buildDescriptionFromRaw(raw)
+    if type(raw) ~= "table" then return nil end
+    if type(raw.Full) == "table" then
+        local d = buildDescriptionFromFull(raw.Full)
+        if d then return d end
+    end
+    local desc = Instance.new("HumanoidDescription")
+    local function setNum(prop, value)
+        local id = parseAssetId(value)
+        if id then pcall(function() desc[prop] = id end) end
+    end
+    setNum("Shirt", raw.Shirt) setNum("Pants", raw.Pants) setNum("Face", raw.Face) setNum("GraphicTShirt", raw.GraphicTShirt)
+    if type(raw.BodyParts) == "table" then
+        setNum("Head", raw.BodyParts.Head) setNum("Torso", raw.BodyParts.Torso)
+        setNum("LeftArm", raw.BodyParts.LeftArm) setNum("RightArm", raw.BodyParts.RightArm)
+        setNum("LeftLeg", raw.BodyParts.LeftLeg) setNum("RightLeg", raw.BodyParts.RightLeg)
+    end
+    if type(raw.Animations) == "table" then
+        setNum("IdleAnimation", raw.Animations.Idle) setNum("WalkAnimation", raw.Animations.Walk)
+        setNum("RunAnimation", raw.Animations.Run) setNum("JumpAnimation", raw.Animations.Jump)
+        setNum("FallAnimation", raw.Animations.Fall) setNum("ClimbAnimation", raw.Animations.Climb)
+        setNum("SwimAnimation", raw.Animations.Swim) setNum("SwimIdleAnimation", raw.Animations.SwimIdle)
+        setNum("MoodAnimation", raw.Animations.Mood)
+    end
+    if type(raw.Accessories) == "table" then
+        local accessories = {}
+        for _, accId in ipairs(raw.Accessories) do
+            local parsed = parseAssetId(accId)
+            if parsed then
+                table.insert(accessories, { AssetId = parsed, AccessoryType = Enum.AccessoryType.Hat, IsLayered = false })
+            end
+        end
+        if #accessories > 0 then pcall(function() desc:SetAccessories(accessories, true) end) end
+    end
+    return desc
+end
+
 local function detectRigType(player)
     local hum = player and player.Character and player.Character:FindFirstChildOfClass("Humanoid")
     return hum and hum.RigType or Enum.HumanoidRigType.R15
 end
 
--- Detect rig type from raw data (BodyParts presence of R6 parts)
 local function detectRigTypeFromRaw(raw)
-    if type(raw) ~= "table" or type(raw.BodyParts) ~= "table" then return Enum.HumanoidRigType.R15 end
-    local bp = raw.BodyParts
-    -- R6 has Torso; R15 has UpperTorso/LowerTorso in description, but the raw table here only stores Head/Torso/Arms/Legs (R6-style).
-    if bp.Torso and bp.Torso ~= 0 then return Enum.HumanoidRigType.R6 end
+    if type(raw) ~= "table" then return Enum.HumanoidRigType.R15 end
+    if type(raw.Full) == "table" and raw.Full.RigType then
+        return (raw.Full.RigType == "R6") and Enum.HumanoidRigType.R6 or Enum.HumanoidRigType.R15
+    end
+    if type(raw.BodyParts) == "table" then
+        local bp = raw.BodyParts
+        if bp.Torso and tonumber(bp.Torso) and tonumber(bp.Torso) ~= 0 then
+            return Enum.HumanoidRigType.R6
+        end
+    end
     return Enum.HumanoidRigType.R15
 end
 
--- LRU cache of preview models
+-- Cache LRU
 local PREVIEW_CACHE_LIMIT = 16
 local previewCache, previewCacheOrder = {}, {}
 
@@ -214,9 +482,25 @@ local function getPreviewKey(raw, rigType)
     return ok and encoded or tostring(raw)
 end
 
-local function buildPreviewTemplate(raw, rigType, cacheKey)
-    local desc = buildDescriptionFromRaw(raw)
+local function buildPreviewTemplate(raw, rigType, cacheKey, userId)
+    local desc
+    local rigTypeFromFull = nil
+
+    if type(raw) == "table" and type(raw.Full) == "table" then
+        desc = buildDescriptionFromFull(raw.Full)
+        if raw.Full.RigType then rigTypeFromFull = raw.Full.RigType end
+    end
+
+    if not desc and userId and tonumber(userId) and tonumber(userId) > 0 then
+        local fetched = fetchFullDescriptionByUserId(tonumber(userId))
+        if fetched then desc = buildDescriptionFromFull(fetched) end
+    end
+
+    if not desc then desc = buildDescriptionFromRaw(raw) end
     if not desc then return nil end
+
+    if rigTypeFromFull == "R6" then rigType = Enum.HumanoidRigType.R6
+    elseif rigTypeFromFull == "R15" then rigType = Enum.HumanoidRigType.R15 end
 
     local ok, model = pcall(function()
         if type(Players.CreateHumanoidModelFromDescriptionAsync) == "function" then
@@ -242,7 +526,7 @@ local function buildPreviewTemplate(raw, rigType, cacheKey)
 end
 
 -- ============================================================
--- [NOVO] UI DO PREVIEW 3D
+-- UI DO PREVIEW 3D
 -- ============================================================
 
 local hoverPreview = create("Frame", sg, {
@@ -284,7 +568,6 @@ local hoverName = create("TextLabel", hoverPreview, {
     ZIndex = 1502,
 })
 
--- Preview state
 local previewToken = 0
 local previewModel, previewViewport, previewConnection = nil, nil, nil
 local previewButton = nil
@@ -324,7 +607,7 @@ local function positionCamera(cam, model)
     cam.CFrame = CFrame.lookAt(target + look.Unit * distance, target)
 end
 
-local function showHoverPreview(raw, displayName, rigType, anchorButton)
+local function showHoverPreview(raw, displayName, rigType, anchorButton, userId)
     if not raw then return end
     stopHoverPreview()
     local token = previewToken
@@ -335,13 +618,11 @@ local function showHoverPreview(raw, displayName, rigType, anchorButton)
     hoverPreview.Visible = true
     previewButton = anchorButton
 
-    -- Position next to the button
     if anchorButton then
         local abs = anchorButton.AbsolutePosition
         local size = anchorButton.AbsoluteSize
         local x = abs.X + size.X + 8
         local y = abs.Y - 40
-        -- Clamp inside the screen
         local cam = workspace.CurrentCamera
         local vp = cam and cam.ViewportSize or Vector2.new(1920, 1080)
         local scale = math.max(uiScale.Scale, 0.01)
@@ -358,7 +639,9 @@ local function showHoverPreview(raw, displayName, rigType, anchorButton)
             return
         end
 
-        local key = getPreviewKey(raw, rigType)
+        local keySuffix = tostring(userId or "")
+        local key = getPreviewKey(raw, rigType) .. "|u:" .. keySuffix
+
         local template = previewCache[key]
         if template and template.Parent ~= nil then
             previewCache[key] = nil
@@ -368,11 +651,11 @@ local function showHoverPreview(raw, displayName, rigType, anchorButton)
         end
 
         if not template then
-            template = buildPreviewTemplate(raw, rigType, key)
+            template = buildPreviewTemplate(raw, rigType, key, userId)
         end
 
         if not template then
-            hoverStatus.Text = "Falha ao gerar preview.\n(Verifique se os IDs são válidos.)"
+            hoverStatus.Text = "Falha ao gerar preview.\n(IDs inválidos ou asset removido.)"
             return
         end
 
@@ -391,11 +674,10 @@ local function showHoverPreview(raw, displayName, rigType, anchorButton)
 
         positionCamera(cam, model)
         cam.FieldOfView = 35
-
         hoverStatus.Visible = false
 
         local angle = 0
-        previewConnection = game:GetService("RunService").RenderStepped:Connect(function(dt)
+        previewConnection = RUN_SERVICE.RenderStepped:Connect(function(dt)
             if token ~= previewToken or not hoverPreview.Visible or not model.Parent then
                 stopHoverPreview()
                 return
@@ -407,19 +689,13 @@ local function showHoverPreview(raw, displayName, rigType, anchorButton)
 end
 
 -- ============================================================
--- [NOVO] TRY-ON INSTANTÂNEO (clone local + wearRemote em paralelo)
+-- TRY-ON INSTANTÂNEO (clone local + wearRemote em paralelo)
 -- ============================================================
 
-local instantTryOnState = {
-    Model = nil,
-    Conn = nil,
-    Hidden = {}, -- [BasePart] = originalTransparency
-    HiddenDecals = {},
-}
+local instantTryOnState = { Model = nil, Conn = nil, Hidden = {}, HiddenDecals = {} }
 
 local function isExternalAttachment(instance, character)
     if instance:FindFirstAncestorOfClass("Tool") or instance:FindFirstAncestorOfClass("VehicleSeat") then return true end
-    -- Only body parts/decals directly under the character
     local top = instance
     while top and top.Parent and top.Parent ~= character do top = top.Parent end
     if not top or top.Parent ~= character then return true end
@@ -440,22 +716,16 @@ local function hideInstance(instance, character)
     if not instance or not character or not instance:IsDescendantOf(character) then return end
     if isExternalAttachment(instance, character) then return end
     if instance:IsA("BasePart") then
-        if instantTryOnState.Hidden[instance] == nil then
-            instantTryOnState.Hidden[instance] = instance.LocalTransparencyModifier
-        end
+        if instantTryOnState.Hidden[instance] == nil then instantTryOnState.Hidden[instance] = instance.LocalTransparencyModifier end
         instance.LocalTransparencyModifier = 1
     elseif instance:IsA("Decal") or instance:IsA("Texture") then
-        if instantTryOnState.HiddenDecals[instance] == nil then
-            instantTryOnState.HiddenDecals[instance] = instance.Transparency
-        end
+        if instantTryOnState.HiddenDecals[instance] == nil then instantTryOnState.HiddenDecals[instance] = instance.Transparency end
         instance.Transparency = 1
     end
 end
 
 local function hideCharacter(character)
-    for _, inst in ipairs(character:GetDescendants()) do
-        hideInstance(inst, character)
-    end
+    for _, inst in ipairs(character:GetDescendants()) do hideInstance(inst, character) end
 end
 
 local function restoreCharacter()
@@ -491,10 +761,7 @@ local function prepareModel(model)
     for _, inst in ipairs(model:GetDescendants()) do
         if inst:IsA("BasePart") then
             inst.Anchored = (inst == root)
-            inst.CanCollide = false
-            inst.CanTouch = false
-            inst.CanQuery = false
-            inst.Massless = true
+            inst.CanCollide = false; inst.CanTouch = false; inst.CanQuery = false; inst.Massless = true
             inst.LocalTransparencyModifier = 0
         elseif inst:IsA("Decal") or inst:IsA("Texture") then
             pcall(function() inst.LocalTransparencyModifier = 0 end)
@@ -506,14 +773,11 @@ end
 
 local function getFeetBottomY(model)
     local names = { "LeftFoot", "RightFoot", "Left Leg", "Right Leg" }
-    local lowest = math.huge
-    local found = false
-    local seen = {}
+    local lowest, found, seen = math.huge, false, {}
     for _, n in ipairs(names) do
         local foot = model:FindFirstChild(n, true)
         if foot and foot:IsA("BasePart") and not seen[foot] then
-            seen[foot] = true
-            found = true
+            seen[foot] = true; found = true
             local half = foot.Size / 2
             for _, x in ipairs({ -half.X, half.X }) do
                 for _, y in ipairs({ -half.Y, half.Y }) do
@@ -528,10 +792,7 @@ local function getFeetBottomY(model)
     return found and lowest or nil
 end
 
--- Instant local try-on: builds a clone of the skin, anchors it to the player,
--- follows the player every frame, hides the real character locally.
--- Runs in parallel with wearRemote (which does the real server-side apply).
-local function runInstantTryOn(raw, rigType)
+local function runInstantTryOn(raw, rigType, userId)
     if type(raw) ~= "table" then return false end
     if not LP.Character then return false end
     local character = LP.Character
@@ -540,8 +801,17 @@ local function runInstantTryOn(raw, rigType)
 
     stopInstantTryOn()
 
-    local desc = buildDescriptionFromRaw(raw)
+    local desc
+    if type(raw.Full) == "table" then desc = buildDescriptionFromFull(raw.Full) end
+    if not desc and userId then
+        local f = fetchFullDescriptionByUserId(tonumber(userId))
+        if f then desc = buildDescriptionFromFull(f) end
+    end
+    if not desc then desc = buildDescriptionFromRaw(raw) end
     if not desc then return false end
+
+    if type(raw.Full) == "table" and raw.Full.RigType == "R6" then rigType = Enum.HumanoidRigType.R6
+    elseif type(raw.Full) == "table" and raw.Full.RigType == "R15" then rigType = Enum.HumanoidRigType.R15 end
 
     local ok, model = pcall(function()
         if type(Players.CreateHumanoidModelFromDescriptionAsync) == "function" then
@@ -561,43 +831,26 @@ local function runInstantTryOn(raw, rigType)
     model.Parent = workspace
 
     local cloneRoot = model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart or model:FindFirstChild("Head", true)
-    if not cloneRoot then
-        pcall(function() model:Destroy() end)
-        return false
-    end
+    if not cloneRoot then pcall(function() model:Destroy() end) return false end
 
-    -- Compute feet offset (clone feet vs player feet)
     local charFeet = getFeetBottomY(character)
     local cloneFeet = getFeetBottomY(model)
     local yOffset = (charFeet and cloneFeet) and (charFeet - cloneFeet) or 0
 
     cloneRoot.CFrame = charRoot.CFrame + Vector3.new(0, yOffset, 0)
-
-    -- Hide the real character locally
     hideCharacter(character)
-
     instantTryOnState.Model = model
 
-    -- Follow the player every frame
-    instantTryOnState.Conn = game:GetService("RunService").RenderStepped:Connect(function()
-        if not instantTryOnState.Model or not instantTryOnState.Model.Parent then
-            stopInstantTryOn()
-            return
-        end
-        if not LP.Character or not LP.Character.Parent then
-            stopInstantTryOn()
-            return
-        end
+    instantTryOnState.Conn = RUN_SERVICE.RenderStepped:Connect(function()
+        if not instantTryOnState.Model or not instantTryOnState.Model.Parent then stopInstantTryOn() return end
+        if not LP.Character or not LP.Character.Parent then stopInstantTryOn() return end
         local cRoot = LP.Character:FindFirstChild("HumanoidRootPart") or LP.Character.PrimaryPart
         if not cRoot then return end
         local r = instantTryOnState.Model:FindFirstChild("HumanoidRootPart") or instantTryOnState.Model.PrimaryPart
         if not r then return end
         r.CFrame = cRoot.CFrame + Vector3.new(0, yOffset, 0)
-        -- Re-hide character parts in case they got restored by external scripts
-        for part, t in pairs(instantTryOnState.Hidden) do
-            if part and part.Parent and part.LocalTransparencyModifier ~= 1 then
-                part.LocalTransparencyModifier = 1
-            end
+        for part in pairs(instantTryOnState.Hidden) do
+            if part and part.Parent and part.LocalTransparencyModifier ~= 1 then part.LocalTransparencyModifier = 1 end
         end
     end)
 
@@ -605,7 +858,7 @@ local function runInstantTryOn(raw, rigType)
 end
 
 -- ============================================================
--- FIM DO SISTEMA NOVO
+-- WEAR REMOTE ORIGINAL (mantido)
 -- ============================================================
 
 local function clonarSkinBrookhaven(skinData)
@@ -654,22 +907,16 @@ local function clonarSkinBrookhaven(skinData)
 
     if skinData.Animations then
         for animName, animId in pairs(skinData.Animations) do
-            if animId and tonumber(animId) ~= 0 then
-                pcall(function() wearRemote:InvokeServer(tonumber(animId)) end)
-                task.wait(0.9)
-            end
+            if animId and tonumber(animId) ~= 0 then pcall(function() wearRemote:InvokeServer(tonumber(animId)) end) task.wait(0.9) end
         end
     end
 end
 
--- [NOVO] Wrapper: instant try-on + wearRemote in parallel
-local function applySkinToSelf(raw, displayName)
+local function applySkinToSelf(raw, displayName, userId)
     if not raw then return end
     local rig = detectRigTypeFromRaw(raw)
-    local ok = runInstantTryOn(raw, rig)
+    local ok = runInstantTryOn(raw, rig, userId)
     if ok then
-        -- Schedule cleanup after wearRemote would likely finish.
-        -- wearRemote takes ~0.9s per item; count items roughly.
         local itemCount = 1
         if type(raw.Accessories) == "table" then itemCount += #raw.Accessories end
         if raw.Shirt and tonumber(raw.Shirt) ~= 0 then itemCount += 1 end
@@ -679,25 +926,21 @@ local function applySkinToSelf(raw, displayName)
             for _, v in pairs(raw.BodyParts) do if tonumber(v) and tonumber(v) ~= 0 then itemCount += 1 end end
         end
         local estimatedSeconds = itemCount * 0.9 + 1.5
-        task.delay(estimatedSeconds, function()
-            -- Only stop if wearRemote didn't already re-apply (avoid nuking real avatar)
-            -- The user's real avatar will be visually replaced by wearRemote. We just remove our clone.
-            stopInstantTryOn()
-        end)
+        task.delay(estimatedSeconds, function() stopInstantTryOn() end)
     end
-    -- Fire the real Brookhaven wear (slow, server-side)
     task.spawn(clonarSkinBrookhaven, raw)
 end
 
+-- ============================================================
+-- CARDS / LISTAS / ABAS
+-- ============================================================
+
 local function createCard(id, defName, isAnimation)
     if not id or tostring(id) == "0" or id == "" then return end
-
     local card = create("TextButton", gridScroll, { BackgroundColor3 = isAnimation and Color3.fromRGB(20, 15, 30) or Color3.fromRGB(15, 15, 15), Text = "", ZIndex = 104 }, 6)
     create("UIStroke", card, { Color = isAnimation and Color3.fromRGB(230, 110, 20) or Color3.fromRGB(40, 40, 40), Thickness = 1 })
-
     local imgLabel = create("ImageLabel", card, { Size = UDim2.new(1, -10, 0, 65), Position = UDim2.new(0, 5, 0, 5), BackgroundTransparency = 1, Image = "rbxthumb://type=Asset&id=" .. id .. "&w=150&h=150", ZIndex = 105 })
     local label = create("TextLabel", card, { Size = UDim2.new(1, -6, 0, 35), Position = UDim2.new(0, 3, 1, -45), Text = "...", TextColor3 = Color3.fromRGB(200, 200, 200), TextSize = 8, Font = Enum.Font.Gotham, TextWrapped = true, BackgroundTransparency = 1, ZIndex = 105 })
-
     task.spawn(function()
         local s, info = pcall(Marketplace.GetProductInfo, Marketplace, id)
         if s and info then
@@ -705,11 +948,8 @@ local function createCard(id, defName, isAnimation)
             if isAnimation or info.AssetTypeId == 24 then
                 imgLabel.Image = "rbxthumb://type=Asset&id=" .. id .. "&w=150&h=150"
             end
-        else
-            label.Text = defName
-        end
+        else label.Text = defName end
     end)
-
     card.MouseButton1Click:Connect(function() currentId = id cMsg.Text = "COPIAR ID DO: " .. defName:upper() confirmGui.Visible = true end)
 end
 
@@ -720,31 +960,12 @@ local function displayAvatarData(name, data)
     subTitle.Text = "DETALHES DO AVATAR"
     updateVisibility()
     for _, v in pairs(gridScroll:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
-
     createCard(data.Shirt, "Camisa") createCard(data.Pants, "Calça") createCard(data.Face, "Rosto")
     for part, id in pairs(data.BodyParts or {}) do createCard(id, part) end
     for _, accId in ipairs(data.Accessories or {}) do createCard(accId, "Acessório") end
-
     if data.Animations then
-        for animName, animId in pairs(data.Animations) do
-            createCard(animId, "Anim: " .. animName, true)
-        end
+        for animName, animId in pairs(data.Animations) do createCard(animId, "Anim: " .. animName, true) end
     end
-
-    -- [NOVO] 3D preview button in detail page
-    local previewBtn = create("TextButton", detailPage, {
-        Size = UDim2.new(0, 120, 0, 30), Position = UDim2.new(0, 10, 0, 5),
-        BackgroundColor3 = Color3.fromRGB(25, 25, 25), Text = "PREVIEW 3D",
-        TextColor3 = Color3.fromRGB(255, 255, 255), Font = ARCADE_FONT, TextSize = 12,
-        ZIndex = 115,
-    }, 6)
-    create("UIStroke", previewBtn, { Color = Color3.fromRGB(70, 70, 70), Thickness = 1 })
-    -- Shift grid down to make room
-    gridScroll.Position = UDim2.new(0, 10, 0, 42)
-    gridScroll.Size = UDim2.new(1, -20, 1, -100)
-    previewBtn.MouseButton1Click:Connect(function()
-        showHoverPreview(data, name, detectRigTypeFromRaw(data), previewBtn)
-    end)
 end
 
 local function clearList() for _, v in pairs(listPage:GetChildren()) do if v:IsA("Frame") or v:IsA("TextButton") then v:Destroy() end end end
@@ -760,36 +981,31 @@ local function updatePlayerList()
     for _, p in pairs(players) do
         local dispName = p.DisplayName:lower()
         local username = p.Name:lower()
-
         if filterText == "" or dispName:find(filterText, 1, true) or username:find(filterText, 1, true) then
             local cardBtn = create("TextButton", listPage, { Size = UDim2.new(1, -8, 0, 38), BackgroundColor3 = Color3.fromRGB(12, 12, 12), Text = "", ZIndex = 105 }, 6)
             create("UIStroke", cardBtn, { Color = Color3.fromRGB(35, 35, 35), Thickness = 1 })
-
             create("ImageLabel", cardBtn, { Size = UDim2.new(0, 20, 0, 20), Position = UDim2.new(0, 10, 0.5, -10), BackgroundTransparency = 1, Image = "rbxassetid://92027896399298", ScaleType = Enum.ScaleType.Fit, ZIndex = 106 })
-
             local txt = (p == LP and "[VOCÊ] " or "") .. p.DisplayName .. " (@" .. p.Name .. ")"
             create("TextLabel", cardBtn, { Size = UDim2.new(1, -85, 1, 0), Position = UDim2.new(0, 38, 0, 0), BackgroundTransparency = 1, Text = txt, TextColor3 = Color3.fromRGB(255, 255, 255), TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 11, ZIndex = 106 })
-
             create("ImageLabel", cardBtn, { Size = UDim2.new(0, 22, 0, 22), Position = UDim2.new(1, -20, 0.5, -11), BackgroundTransparency = 1, Image = "rbxassetid://131196469256282", ScaleType = Enum.ScaleType.Fit, ZIndex = 106 })
 
-            -- [NOVO] Build raw data once, reuse for both click and hover preview
             local function buildRawFromPlayer()
                 local hum = p.Character and p.Character:FindFirstChildOfClass("Humanoid")
                 if not hum then return nil end
+                local full = serializeFullDescription(hum)
                 local s, d = pcall(function() return hum:GetAppliedDescription(hum) end)
-                if not s or not d then return nil end
-                local raw = {
-                    Shirt = d.Shirt, Pants = d.Pants, Face = d.Face,
-                    Accessories = {},
-                    BodyParts = { Head = d.Head, Torso = d.Torso, LeftArm = d.LeftArm, RightArm = d.RightArm, LeftLeg = d.LeftLeg, RightLeg = d.RightLeg },
-                    Animations = {
-                        Idle = d.IdleAnimation, Walk = d.WalkAnimation, Run = d.RunAnimation,
-                        Jump = d.JumpAnimation, Fall = d.FallAnimation, Climb = d.ClimbAnimation, Swim = d.SwimAnimation,
-                    }
-                }
-                for _, a in ipairs(d:GetAccessories(true)) do
-                    if a.AssetId and a.AssetId ~= 0 then table.insert(raw.Accessories, a.AssetId) end
+                local raw = { Shirt = 0, Pants = 0, Face = 0, Accessories = {}, BodyParts = {}, Animations = {} }
+                if s and d then
+                    raw.Shirt = d.Shirt raw.Pants = d.Pants raw.Face = d.Face
+                    raw.BodyParts = { Head = d.Head, Torso = d.Torso, LeftArm = d.LeftArm, RightArm = d.RightArm, LeftLeg = d.LeftLeg, RightLeg = d.RightLeg }
+                    raw.Animations = { Idle = d.IdleAnimation, Walk = d.WalkAnimation, Run = d.RunAnimation, Jump = d.JumpAnimation, Fall = d.FallAnimation, Climb = d.ClimbAnimation, Swim = d.SwimAnimation }
+                    for _, a in ipairs(d:GetAccessories(true)) do
+                        if a.AssetId and a.AssetId ~= 0 then table.insert(raw.Accessories, a.AssetId) end
+                    end
+                    pcall(function() d:Destroy() end)
                 end
+                raw.Full = full
+                raw.UserId = p.UserId
                 return raw
             end
 
@@ -798,13 +1014,10 @@ local function updatePlayerList()
                 if raw then displayAvatarData(p.Name, raw) end
             end)
 
-            -- [NOVO] 3D preview on hover (PC) / long press (mobile)
             if not UserInputService.TouchEnabled then
                 cardBtn.MouseEnter:Connect(function()
                     local raw = buildRawFromPlayer()
-                    if raw then
-                        showHoverPreview(raw, p.DisplayName, detectRigType(p), cardBtn)
-                    end
+                    if raw then showHoverPreview(raw, p.DisplayName, detectRigType(p), cardBtn, p.UserId) end
                 end)
                 cardBtn.MouseLeave:Connect(function()
                     if previewButton == cardBtn then stopHoverPreview() end
@@ -817,7 +1030,7 @@ local function updatePlayerList()
                         task.delay(0.5, function()
                             if pressTime and os.clock() - pressTime >= 0.45 and previewButton ~= cardBtn then
                                 local raw = buildRawFromPlayer()
-                                if raw then showHoverPreview(raw, p.DisplayName, detectRigType(p), cardBtn) end
+                                if raw then showHoverPreview(raw, p.DisplayName, detectRigType(p), cardBtn, p.UserId) end
                             end
                         end)
                     end
@@ -834,21 +1047,15 @@ local function updatePlayerList()
 end
 
 searchBox:GetPropertyChangedSignal("Text"):Connect(function()
-    if currentTab == "Players" and not detailPage.Visible then
-        updatePlayerList()
-    end
+    if currentTab == "Players" and not detailPage.Visible then updatePlayerList() end
 end)
-
-searchClearBtn.MouseButton1Click:Connect(function()
-    searchBox.Text = ""
-end)
+searchClearBtn.MouseButton1Click:Connect(function() searchBox.Text = "" end)
 
 updateSavedList = function()
     clearList() local saved = {} modifyFile(function(f) saved = f end)
     if not next(saved) then
         create("TextLabel", listPage, { Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 1, Text = "NENHUM AVATAR SALVO.", TextColor3 = Color3.fromRGB(140, 140, 140), Font = ARCADE_FONT, TextSize = 12 }) return
     end
-
     local sortedKeys = {}
     for k in pairs(saved) do table.insert(sortedKeys, k) end
     table.sort(sortedKeys)
@@ -857,14 +1064,14 @@ updateSavedList = function()
         local item = saved[uniqueId]
         local container = create("Frame", listPage, { Size = UDim2.new(1, -8, 0, 35), BackgroundColor3 = Color3.fromRGB(15, 15, 15) }, 6)
         create("UIStroke", container, { Color = Color3.fromRGB(45, 45, 45), Thickness = 1 })
-
         local b = create("TextButton", container, { Size = UDim2.new(1, -110, 1, 0), BackgroundTransparency = 1, Text = "    " .. item.Name, TextColor3 = Color3.fromRGB(255, 255, 255), TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 11, ZIndex = 105 })
         b.MouseButton1Click:Connect(function() displayAvatarData(item.Name, item.Data) end)
 
-        -- [NOVO] 3D preview on hover over the saved skin name button
+        local userIdForPreview = item.Data and item.Data.UserId
+
         if not UserInputService.TouchEnabled then
             b.MouseEnter:Connect(function()
-                showHoverPreview(item.Data, item.Name, detectRigTypeFromRaw(item.Data), b)
+                showHoverPreview(item.Data, item.Name, detectRigTypeFromRaw(item.Data), b, userIdForPreview)
             end)
             b.MouseLeave:Connect(function()
                 if previewButton == b then stopHoverPreview() end
@@ -876,7 +1083,7 @@ updateSavedList = function()
                     pressTime = os.clock()
                     task.delay(0.5, function()
                         if pressTime and os.clock() - pressTime >= 0.45 and previewButton ~= b then
-                            showHoverPreview(item.Data, item.Name, detectRigTypeFromRaw(item.Data), b)
+                            showHoverPreview(item.Data, item.Name, detectRigTypeFromRaw(item.Data), b, userIdForPreview)
                         end
                     end)
                 end
@@ -889,11 +1096,9 @@ updateSavedList = function()
             end)
         end
 
-        -- [NOVO] Copy skin button: instant try-on + wearRemote in parallel
         local copySkinBtn = create("ImageButton", container, { Size = UDim2.new(0, 22, 0, 22), Position = UDim2.new(1, -66, 0.5, 0), AnchorPoint = Vector2.new(1, 0.5), BackgroundTransparency = 1, Image = "rbxassetid://133764834615931", ScaleType = Enum.ScaleType.Fit, ZIndex = 106 })
         copySkinBtn.MouseButton1Click:Connect(function()
-            -- Instant local try-on (instant feedback)
-            applySkinToSelf(item.Data, item.Name)
+            applySkinToSelf(item.Data, item.Name, userIdForPreview)
         end)
 
         local function createActionBtn(img, xOffset, cb)
@@ -905,15 +1110,29 @@ updateSavedList = function()
     end
 end
 
+-- Migração silenciosa de skins antigas
+local migrationDone = false
+local function migrateOldSkinsOnce()
+    if migrationDone then return end
+    migrationDone = true
+    modifyFile(function(f)
+        for uniqueId, item in pairs(f) do
+            if type(item) == "table" and type(item.Data) == "table"
+                and not item.Data.Full
+                and tonumber(item.Data.UserId) and tonumber(item.Data.UserId) > 0 then
+                local fetched = fetchFullDescriptionByUserId(tonumber(item.Data.UserId))
+                if fetched then item.Data.Full = fetched end
+            end
+        end
+    end)
+end
+
 local function returnToMainPlayers()
     currentTab = "Players"
     title.Text = "INSPECIONADOR DE AVATAR V1 SPANW"
     subTitle.Text = "LISTA DE JOGADORES • PESQUISE E SELECIONE"
     detailPage.Visible = false
     listPage.Visible = true
-    -- Reset grid position after detail page use
-    gridScroll.Position = UDim2.new(0, 10, 0, 5)
-    gridScroll.Size = UDim2.new(1, -20, 1, -65)
     updatePlayerList()
     updateVisibility()
 end
@@ -921,9 +1140,6 @@ end
 bk.MouseButton1Click:Connect(function()
     detailPage.Visible = false
     listPage.Visible = true
-    -- Reset grid position
-    gridScroll.Position = UDim2.new(0, 10, 0, 5)
-    gridScroll.Size = UDim2.new(1, -20, 1, -65)
     if currentTab == "Players" then
         title.Text = "INSPECIONADOR DE AVATAR V1 SPANW"
         subTitle.Text = "LISTA DE JOGADORES • PESQUISE E SELECIONE"
@@ -953,6 +1169,7 @@ folderTabBtn.MouseButton1Click:Connect(function()
     currentTab = "Database"
     title.Text = "Skin Storage INSPECTION"
     subTitle.Text = "AVATARES SALVOS"
+    migrateOldSkinsOnce()
     updateSavedList()
     updateVisibility()
 end)
@@ -984,19 +1201,9 @@ UserInputService.InputEnded:Connect(function(i)
             main.Visible = not main.Visible
             if main.Visible then
                 if currentTab == "Players" then
-                    if detailPage.Visible then
-                        updateVisibility()
-                    else
-                        updatePlayerList()
-                        updateVisibility()
-                    end
+                    if detailPage.Visible then updateVisibility() else updatePlayerList() updateVisibility() end
                 else
-                    if detailPage.Visible then
-                        updateVisibility()
-                    else
-                        updateSavedList()
-                        updateVisibility()
-                    end
+                    if detailPage.Visible then updateVisibility() else updateSavedList() updateVisibility() end
                 end
             else
                 stopHoverPreview()
@@ -1023,6 +1230,7 @@ task.spawn(function()
             pcall(function() stopHoverPreview() end)
             pcall(function() stopInstantTryOn() end)
             pcall(function() clearPreviewCache() end)
+            pcall(function() table.clear(userFullDescCache) end)
             pcall(function() sg:Destroy() end)
         end
     }
@@ -1042,16 +1250,9 @@ task.spawn(function()
 
     local exists = false
     for _, item in ipairs(_G.ScriptManagerQueue) do
-        if item.id == scriptId then
-            exists = true
-            item.config = scriptConfig
-            break
-        end
+        if item.id == scriptId then exists = true item.config = scriptConfig break end
     end
-    if not exists then
-        table.insert(_G.ScriptManagerQueue, {id = scriptId, config = scriptConfig})
-    end
-
+    if not exists then table.insert(_G.ScriptManagerQueue, {id = scriptId, config = scriptConfig}) end
     if _G.ScriptManager and type(_G.ScriptManager.RegisterScript) == "function" then
         _G.ScriptManager.RegisterScript(scriptId, scriptConfig)
     end

@@ -103,7 +103,7 @@ local function updateVisibility()
 end
 
 -- ============================================================
--- [NOVO] SISTEMA DE PREVIEW 3D (PERFEITO) + TRY-ON INSTANTÂNEO
+-- SISTEMA DE PREVIEW 3D (CORES PERFEITAS + FIXO NA TELA)
 -- ============================================================
 
 local function parseAssetId(val)
@@ -140,7 +140,6 @@ local function tableToVec3(t, fallback)
     return Vector3.new(tonumber(t.X or t.x) or fallback.X, tonumber(t.Y or t.y) or fallback.Y, tonumber(t.Z or t.z) or fallback.Z)
 end
 
--- Captura TUDO de uma HumanoidDescription real (incluindo cor de pele)
 local function serializeFullDescription(hum)
     if not hum then return nil end
     local ok, desc = pcall(function() return hum:GetAppliedDescription() end)
@@ -162,7 +161,6 @@ local function serializeFullDescription(hum)
         if ok2 and v then data[key] = v end
     end
 
-    -- ⭐ CORES DE PELE
     for _, key in ipairs({ "HeadColor", "TorsoColor", "LeftArmColor", "RightArmColor", "LeftLegColor", "RightLegColor" }) do
         local ok2, v = pcall(function() return desc[key] end)
         if ok2 and v then data[key] = colorToTable(v) end
@@ -221,7 +219,6 @@ local function serializeFullDescription(hum)
     return data
 end
 
--- Reconstrói HumanoidDescription PERFEITA a partir do .Full
 local function buildDescriptionFromFull(full)
     if type(full) ~= "table" then return nil end
     local desc = Instance.new("HumanoidDescription")
@@ -245,9 +242,21 @@ local function buildDescriptionFromFull(full)
         if v then pcall(function() desc[key] = v end) end
     end
 
+    local hasAnyColor = false
     for _, key in ipairs({ "HeadColor", "TorsoColor", "LeftArmColor", "RightArmColor", "LeftLegColor", "RightLegColor" }) do
         local c = tableToColor(full[key])
-        if c then pcall(function() desc[key] = c end) end
+        if c then 
+            pcall(function() desc[key] = c end) 
+            hasAnyColor = true
+        end
+    end
+    
+    if not hasAnyColor then
+        local neutral = Color3.fromRGB(205, 170, 125)
+        pcall(function()
+            desc.HeadColor = neutral; desc.TorsoColor = neutral; desc.LeftArmColor = neutral
+            desc.RightArmColor = neutral; desc.LeftLegColor = neutral; desc.RightLegColor = neutral
+        end)
     end
 
     if type(full.Accessories) == "table" then
@@ -300,7 +309,6 @@ local function buildDescriptionFromFull(full)
     return desc
 end
 
--- FALLBACK: busca descrição COMPLETA por UserId (skins antigas sem .Full)
 local userFullDescCache = {}
 local function fetchFullDescriptionByUserId(userId)
     if not userId or userId <= 0 then return nil end
@@ -369,33 +377,6 @@ local function fetchFullDescriptionByUserId(userId)
     return data
 end
 
--- Reconstrói o "raw" legado a partir de um .Full
-local function rawFromFull(full)
-    if type(full) ~= "table" then return nil end
-    local raw = {
-        Shirt = full.Shirt or 0, Pants = full.Pants or 0, Face = full.Face or 0,
-        Accessories = {},
-        BodyParts = {
-            Head = full.Head or 0, Torso = full.Torso or 0,
-            LeftArm = full.LeftArm or 0, RightArm = full.RightArm or 0,
-            LeftLeg = full.LeftLeg or 0, RightLeg = full.RightLeg or 0,
-        },
-        Animations = {
-            Idle = full.IdleAnimation or 0, Walk = full.WalkAnimation or 0,
-            Run = full.RunAnimation or 0, Jump = full.JumpAnimation or 0,
-            Fall = full.FallAnimation or 0, Climb = full.ClimbAnimation or 0,
-            Swim = full.SwimAnimation or 0,
-        },
-        Full = full,
-    }
-    if type(full.Accessories) == "table" then
-        for _, a in ipairs(full.Accessories) do
-            if type(a) == "table" and a.AssetId then table.insert(raw.Accessories, a.AssetId) end
-        end
-    end
-    return raw
-end
-
 local function buildDescriptionFromRaw(raw)
     if type(raw) ~= "table" then return nil end
     if type(raw.Full) == "table" then
@@ -430,6 +411,13 @@ local function buildDescriptionFromRaw(raw)
         end
         if #accessories > 0 then pcall(function() desc:SetAccessories(accessories, true) end) end
     end
+    
+    pcall(function()
+        local neutral = Color3.fromRGB(205, 170, 125)
+        desc.HeadColor = neutral; desc.TorsoColor = neutral; desc.LeftArmColor = neutral
+        desc.RightArmColor = neutral; desc.LeftLegColor = neutral; desc.RightLegColor = neutral
+    end)
+    
     return desc
 end
 
@@ -452,7 +440,6 @@ local function detectRigTypeFromRaw(raw)
     return Enum.HumanoidRigType.R15
 end
 
--- Cache LRU
 local PREVIEW_CACHE_LIMIT = 16
 local previewCache, previewCacheOrder = {}, {}
 
@@ -525,13 +512,12 @@ local function buildPreviewTemplate(raw, rigType, cacheKey, userId)
     return model
 end
 
--- ============================================================
--- UI DO PREVIEW 3D
--- ============================================================
-
+-- UI DO PREVIEW 3D (FIXO NA TELA)
 local hoverPreview = create("Frame", sg, {
     Name = "AvatarHoverPreview",
     Size = UDim2.new(0, 200, 0, 260),
+    -- ⭐ Posição fixa baseada no script original que você printou
+    Position = UDim2.new(0.5, 105, 0.5, -110), 
     BackgroundColor3 = Color3.fromRGB(8, 8, 8),
     Visible = false,
     ZIndex = 1500,
@@ -618,20 +604,6 @@ local function showHoverPreview(raw, displayName, rigType, anchorButton, userId)
     hoverPreview.Visible = true
     previewButton = anchorButton
 
-    if anchorButton then
-        local abs = anchorButton.AbsolutePosition
-        local size = anchorButton.AbsoluteSize
-        local x = abs.X + size.X + 8
-        local y = abs.Y - 40
-        local cam = workspace.CurrentCamera
-        local vp = cam and cam.ViewportSize or Vector2.new(1920, 1080)
-        local scale = math.max(uiScale.Scale, 0.01)
-        if x + 200 > vp.X then x = abs.X - 208 end
-        if y < 0 then y = 0 end
-        if y + 260 > vp.Y then y = vp.Y - 260 end
-        hoverPreview.Position = UDim2.new(0, x / scale, 0, y / scale)
-    end
-
     task.spawn(function()
         local vp, wm, cam = createViewport(hoverViewportHolder)
         if not vp then
@@ -689,176 +661,7 @@ local function showHoverPreview(raw, displayName, rigType, anchorButton, userId)
 end
 
 -- ============================================================
--- TRY-ON INSTANTÂNEO (clone local + wearRemote em paralelo)
--- ============================================================
-
-local instantTryOnState = { Model = nil, Conn = nil, Hidden = {}, HiddenDecals = {} }
-
-local function isExternalAttachment(instance, character)
-    if instance:FindFirstAncestorOfClass("Tool") or instance:FindFirstAncestorOfClass("VehicleSeat") then return true end
-    local top = instance
-    while top and top.Parent and top.Parent ~= character do top = top.Parent end
-    if not top or top.Parent ~= character then return true end
-    if top:IsA("Accessory") then return false end
-    local bodyNames = {
-        Head = true, HumanoidRootPart = true, Torso = true, UpperTorso = true, LowerTorso = true,
-        ["Left Arm"] = true, ["Right Arm"] = true, ["Left Leg"] = true, ["Right Leg"] = true,
-        LeftUpperArm = true, LeftLowerArm = true, LeftHand = true,
-        RightUpperArm = true, RightLowerArm = true, RightHand = true,
-        LeftUpperLeg = true, LeftLowerLeg = true, LeftFoot = true,
-        RightUpperLeg = true, RightLowerLeg = true, RightFoot = true,
-    }
-    if top:IsA("BasePart") and bodyNames[top.Name] then return false end
-    return true
-end
-
-local function hideInstance(instance, character)
-    if not instance or not character or not instance:IsDescendantOf(character) then return end
-    if isExternalAttachment(instance, character) then return end
-    if instance:IsA("BasePart") then
-        if instantTryOnState.Hidden[instance] == nil then instantTryOnState.Hidden[instance] = instance.LocalTransparencyModifier end
-        instance.LocalTransparencyModifier = 1
-    elseif instance:IsA("Decal") or instance:IsA("Texture") then
-        if instantTryOnState.HiddenDecals[instance] == nil then instantTryOnState.HiddenDecals[instance] = instance.Transparency end
-        instance.Transparency = 1
-    end
-end
-
-local function hideCharacter(character)
-    for _, inst in ipairs(character:GetDescendants()) do hideInstance(inst, character) end
-end
-
-local function restoreCharacter()
-    for part, t in pairs(instantTryOnState.Hidden) do
-        pcall(function() if part and part.Parent then part.LocalTransparencyModifier = t end end)
-    end
-    table.clear(instantTryOnState.Hidden)
-    for decal, t in pairs(instantTryOnState.HiddenDecals) do
-        pcall(function() if decal and decal.Parent then decal.Transparency = t end end)
-    end
-    table.clear(instantTryOnState.HiddenDecals)
-end
-
-local function stopInstantTryOn()
-    if instantTryOnState.Conn then pcall(function() instantTryOnState.Conn:Disconnect() end) instantTryOnState.Conn = nil end
-    if instantTryOnState.Model then pcall(function() instantTryOnState.Model:Destroy() end) instantTryOnState.Model = nil end
-    restoreCharacter()
-end
-
-local function prepareModel(model)
-    local hum = model:FindFirstChildOfClass("Humanoid")
-    if hum then
-        hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-        hum.RequiresNeck = false
-        hum.AutomaticScalingEnabled = false
-        pcall(function() hum.EvaluateStateMachine = false end)
-        for _, st in ipairs(Enum.HumanoidStateType:GetEnumItems()) do
-            if st ~= Enum.HumanoidStateType.None then pcall(function() hum:SetStateEnabled(st, false) end) end
-        end
-        pcall(function() hum:ChangeState(Enum.HumanoidStateType.None) end)
-    end
-    local root = model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart
-    for _, inst in ipairs(model:GetDescendants()) do
-        if inst:IsA("BasePart") then
-            inst.Anchored = (inst == root)
-            inst.CanCollide = false; inst.CanTouch = false; inst.CanQuery = false; inst.Massless = true
-            inst.LocalTransparencyModifier = 0
-        elseif inst:IsA("Decal") or inst:IsA("Texture") then
-            pcall(function() inst.LocalTransparencyModifier = 0 end)
-        elseif inst:IsA("Script") or inst:IsA("LocalScript") then
-            pcall(function() inst.Disabled = true end)
-        end
-    end
-end
-
-local function getFeetBottomY(model)
-    local names = { "LeftFoot", "RightFoot", "Left Leg", "Right Leg" }
-    local lowest, found, seen = math.huge, false, {}
-    for _, n in ipairs(names) do
-        local foot = model:FindFirstChild(n, true)
-        if foot and foot:IsA("BasePart") and not seen[foot] then
-            seen[foot] = true; found = true
-            local half = foot.Size / 2
-            for _, x in ipairs({ -half.X, half.X }) do
-                for _, y in ipairs({ -half.Y, half.Y }) do
-                    for _, z in ipairs({ -half.Z, half.Z }) do
-                        local wp = foot.CFrame:PointToWorldSpace(Vector3.new(x, y, z))
-                        if wp.Y < lowest then lowest = wp.Y end
-                    end
-                end
-            end
-        end
-    end
-    return found and lowest or nil
-end
-
-local function runInstantTryOn(raw, rigType, userId)
-    if type(raw) ~= "table" then return false end
-    if not LP.Character then return false end
-    local character = LP.Character
-    local charRoot = character:FindFirstChild("HumanoidRootPart") or character.PrimaryPart
-    if not charRoot then return false end
-
-    stopInstantTryOn()
-
-    local desc
-    if type(raw.Full) == "table" then desc = buildDescriptionFromFull(raw.Full) end
-    if not desc and userId then
-        local f = fetchFullDescriptionByUserId(tonumber(userId))
-        if f then desc = buildDescriptionFromFull(f) end
-    end
-    if not desc then desc = buildDescriptionFromRaw(raw) end
-    if not desc then return false end
-
-    if type(raw.Full) == "table" and raw.Full.RigType == "R6" then rigType = Enum.HumanoidRigType.R6
-    elseif type(raw.Full) == "table" and raw.Full.RigType == "R15" then rigType = Enum.HumanoidRigType.R15 end
-
-    local ok, model = pcall(function()
-        if type(Players.CreateHumanoidModelFromDescriptionAsync) == "function" then
-            return Players:CreateHumanoidModelFromDescriptionAsync(desc, rigType)
-        end
-        return Players:CreateHumanoidModelFromDescription(desc, rigType)
-    end)
-    pcall(function() desc:Destroy() end)
-
-    if not ok or not model or not model:IsA("Model") then
-        if model and typeof(model) == "Instance" then pcall(function() model:Destroy() end) end
-        return false
-    end
-
-    model.Name = "CubnitOmni_InstantTryOn"
-    prepareModel(model)
-    model.Parent = workspace
-
-    local cloneRoot = model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart or model:FindFirstChild("Head", true)
-    if not cloneRoot then pcall(function() model:Destroy() end) return false end
-
-    local charFeet = getFeetBottomY(character)
-    local cloneFeet = getFeetBottomY(model)
-    local yOffset = (charFeet and cloneFeet) and (charFeet - cloneFeet) or 0
-
-    cloneRoot.CFrame = charRoot.CFrame + Vector3.new(0, yOffset, 0)
-    hideCharacter(character)
-    instantTryOnState.Model = model
-
-    instantTryOnState.Conn = RUN_SERVICE.RenderStepped:Connect(function()
-        if not instantTryOnState.Model or not instantTryOnState.Model.Parent then stopInstantTryOn() return end
-        if not LP.Character or not LP.Character.Parent then stopInstantTryOn() return end
-        local cRoot = LP.Character:FindFirstChild("HumanoidRootPart") or LP.Character.PrimaryPart
-        if not cRoot then return end
-        local r = instantTryOnState.Model:FindFirstChild("HumanoidRootPart") or instantTryOnState.Model.PrimaryPart
-        if not r then return end
-        r.CFrame = cRoot.CFrame + Vector3.new(0, yOffset, 0)
-        for part in pairs(instantTryOnState.Hidden) do
-            if part and part.Parent and part.LocalTransparencyModifier ~= 1 then part.LocalTransparencyModifier = 1 end
-        end
-    end)
-
-    return true
-end
-
--- ============================================================
--- WEAR REMOTE ORIGINAL (mantido)
+-- WEAR REMOTE ORIGINAL (MÉTODO ANTIGO, PACIENTE E CONFIÁVEL)
 -- ============================================================
 
 local function clonarSkinBrookhaven(skinData)
@@ -911,29 +714,6 @@ local function clonarSkinBrookhaven(skinData)
         end
     end
 end
-
-local function applySkinToSelf(raw, displayName, userId)
-    if not raw then return end
-    local rig = detectRigTypeFromRaw(raw)
-    local ok = runInstantTryOn(raw, rig, userId)
-    if ok then
-        local itemCount = 1
-        if type(raw.Accessories) == "table" then itemCount += #raw.Accessories end
-        if raw.Shirt and tonumber(raw.Shirt) ~= 0 then itemCount += 1 end
-        if raw.Pants and tonumber(raw.Pants) ~= 0 then itemCount += 1 end
-        if raw.Face and tonumber(raw.Face) ~= 0 then itemCount += 1 end
-        if type(raw.BodyParts) == "table" then
-            for _, v in pairs(raw.BodyParts) do if tonumber(v) and tonumber(v) ~= 0 then itemCount += 1 end end
-        end
-        local estimatedSeconds = itemCount * 0.9 + 1.5
-        task.delay(estimatedSeconds, function() stopInstantTryOn() end)
-    end
-    task.spawn(clonarSkinBrookhaven, raw)
-end
-
--- ============================================================
--- CARDS / LISTAS / ABAS
--- ============================================================
 
 local function createCard(id, defName, isAnimation)
     if not id or tostring(id) == "0" or id == "" then return end
@@ -1096,9 +876,19 @@ updateSavedList = function()
             end)
         end
 
+        -- ⭐ MÉTODO ANTIGO RESTAURADO (Paciente e confiável)
         local copySkinBtn = create("ImageButton", container, { Size = UDim2.new(0, 22, 0, 22), Position = UDim2.new(1, -66, 0.5, 0), AnchorPoint = Vector2.new(1, 0.5), BackgroundTransparency = 1, Image = "rbxassetid://133764834615931", ScaleType = Enum.ScaleType.Fit, ZIndex = 106 })
         copySkinBtn.MouseButton1Click:Connect(function()
-            applySkinToSelf(item.Data, item.Name, userIdForPreview)
+            local originalImage = copySkinBtn.Image
+            copySkinBtn.Image = "rbxassetid://98235327129327" -- ícone de loading (o X)
+            copySkinBtn.Active = false
+            task.spawn(function()
+                pcall(clonarSkinBrookhaven, item.Data)
+                if copySkinBtn and copySkinBtn.Parent then
+                    copySkinBtn.Image = originalImage
+                    copySkinBtn.Active = true
+                end
+            end)
         end)
 
         local function createActionBtn(img, xOffset, cb)
@@ -1110,7 +900,6 @@ updateSavedList = function()
     end
 end
 
--- Migração silenciosa de skins antigas
 local migrationDone = false
 local function migrateOldSkinsOnce()
     if migrationDone then return end
@@ -1154,7 +943,13 @@ end)
 
 databaseReturnBtn.MouseButton1Click:Connect(returnToMainPlayers)
 footerDatabaseReturnBtn.MouseButton1Click:Connect(returnToMainPlayers)
-closeButton.MouseButton1Click:Connect(function() stopHoverPreview() stopInstantTryOn() clearPreviewCache() sg:Destroy() end)
+
+closeButton.MouseButton1Click:Connect(function()
+    stopHoverPreview()
+    clearPreviewCache()
+    sg:Destroy()
+end)
+
 cancelBtn.MouseButton1Click:Connect(function() confirmGui.Visible = false end)
 renameCancelBtn.MouseButton1Click:Connect(function() renameGui.Visible = false activeRenameId = nil end)
 
@@ -1228,7 +1023,6 @@ task.spawn(function()
         GuiObject = sg,
         OnDestroy = function()
             pcall(function() stopHoverPreview() end)
-            pcall(function() stopInstantTryOn() end)
             pcall(function() clearPreviewCache() end)
             pcall(function() table.clear(userFullDescCache) end)
             pcall(function() sg:Destroy() end)

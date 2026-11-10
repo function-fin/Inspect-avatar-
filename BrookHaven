@@ -1,17 +1,17 @@
--- [[ CUBNIT OMNI - DATABASE & CLIPBOARD v31.10 (FIXED INIT) ]] --
-local Players, Marketplace, UserInputService, HttpService = game:GetService("Players"), game:GetService("MarketplaceService"), game:GetService("UserInputService"), game:GetService("HttpService")
+local Players, Marketplace, UserInputService, HttpService, ReplicatedStorage = game:GetService("Players"), game:GetService("MarketplaceService"), game:GetService("UserInputService"), game:GetService("HttpService"), game:GetService("ReplicatedStorage")
 local LP, PG = Players.LocalPlayer, Players.LocalPlayer:WaitForChild("PlayerGui")
-local FILE_NAME = "CubnitOmni_SavedAvatars.json"
+local FILE_NAME, remotesFolder = "CubnitOmni_SavedAvatars.json", ReplicatedStorage:WaitForChild("Remotes", 5)
+local wearRemote = remotesFolder and remotesFolder:FindFirstChild("Wear")
+
+local ARCADE_FONT = Enum.Font.Arcade
 
 local function create(className, parent, props, cornerRadius)
     local inst = Instance.new(className)
     for k, v in pairs(props or {}) do inst[k] = v end
     if cornerRadius then Instance.new("UICorner", inst).CornerRadius = UDim.new(0, cornerRadius) end
-    inst.Parent = parent
-    return inst
+    inst.Parent = parent return inst
 end
 
--- === SISTEMA DE ARQUIVOS === --
 local function modifyFile(callback)
     local s, content = pcall(function() return readfile and readfile(FILE_NAME) end)
     local saved = (s and content and content ~= "") and HttpService:JSONDecode(content) or {}
@@ -21,90 +21,695 @@ end
 
 if PG:FindFirstChild("CubnitOmni_Final") then PG.CubnitOmni_Final:Destroy() end
 
--- === INTERFACE === --
 local sg = create("ScreenGui", PG, { Name = "CubnitOmni_Final", ResetOnSpawn = false, IgnoreGuiInset = true, DisplayOrder = 999 })
 
--- [SPWN] Atributos de identificação persistente
-sg:SetAttribute("SPWN_ManagedScriptID", "CubnitOmniScript")
-sg:SetAttribute("SPWN_ManagedScriptName", "Inspecionar Avatar")
-sg:SetAttribute("SPWN_ManagedScriptCategory", "Inspecionar Avatar")
+sg:SetAttribute("SPWN_ManagedScriptID", "CubnitOmniWearScript")
+sg:SetAttribute("SPWN_ManagedScriptName", "Inspecionar Avatar (Wear)")
+sg:SetAttribute("SPWN_ManagedScriptCategory", "Inspecionar Avatar (Wear)")
+
+local uiScale = Instance.new("UIScale", sg)
+local function updateUIScale()
+    if not UserInputService.TouchEnabled then
+        uiScale.Scale = 1.7
+    else
+        uiScale.Scale = 1.0
+    end
+end
+UserInputService:GetPropertyChangedSignal("TouchEnabled"):Connect(updateUIScale)
+updateUIScale()
 
 local currentId, currentInspectedData, currentInspectedName, currentTab, activeRenameId = nil, nil, "", "Players", nil
-
-local main = create("Frame", sg, { Size = UDim2.new(0, 380, 0, 320), Position = UDim2.new(0.5, -190, 0.5, -160), BackgroundColor3 = Color3.fromRGB(0, 0, 0), Visible = false, ZIndex = 100 }, 8)
+local main = create("Frame", sg, { Size = UDim2.new(0, 380, 0, 350), Position = UDim2.new(0.5, -190, 0.5, -175), BackgroundColor3 = Color3.fromRGB(0, 0, 0), Visible = false, ZIndex = 100 }, 8)
 create("UIStroke", main, { Color = Color3.fromRGB(255, 255, 255), Thickness = 3 })
 
--- [SPWN] Launcher renomeado para OpenToggleButton (o Manager atua nele)
 local launcher = create("ImageButton", sg, { Name = "OpenToggleButton", Size = UDim2.new(0, 70, 0, 70), Position = UDim2.new(0.05, 0, 0.4, 0), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, Image = "rbxassetid://88903575940312", ScaleType = Enum.ScaleType.Fit, ZIndex = 1000 })
 local dStart, sPos, dragging, hasMoved = nil, nil, false, false
 
--- Cabeçalho e Botões
-local header = create("Frame", main, { Size = UDim2.new(1, 0, 0, 45), BackgroundTransparency = 1, ZIndex = 101 })
-local title = create("TextLabel", header, { Size = UDim2.new(1, -140, 1, 0), Position = UDim2.new(0, 15, 0, 0), Text = "INSPECIONADOR DE AVATAR V1 SPANW", TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.FredokaOne, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, BackgroundTransparency = 1, ZIndex = 102 })
+local header = create("Frame", main, { Size = UDim2.new(1, 0, 0, 50), BackgroundTransparency = 1, ZIndex = 101 })
+local titleIcon = create("ImageLabel", header, { Size = UDim2.new(0, 32, 0, 32), Position = UDim2.new(0, 10, 0, 9), BackgroundTransparency = 1, Image = "rbxassetid://116917027196473", ScaleType = Enum.ScaleType.Fit, ZIndex = 102 })
+local title = create("TextLabel", header, { Size = UDim2.new(1, -160, 0, 20), Position = UDim2.new(0, 48, 0, 8), Text = "INSPECIONADOR DE AVATAR V1 SPANW", TextColor3 = Color3.fromRGB(255, 255, 255), Font = ARCADE_FONT, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, BackgroundTransparency = 1, ZIndex = 102 })
+local subTitle = create("TextLabel", header, { Size = UDim2.new(1, -160, 0, 14), Position = UDim2.new(0, 48, 0, 28), Text = "LISTA DE JOGADORES • PESQUISE E SELECIONE", TextColor3 = Color3.fromRGB(180, 180, 180), Font = ARCADE_FONT, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, BackgroundTransparency = 1, ZIndex = 102 })
 
 local function createHeaderBtn(img, offset, visible)
-    return create("ImageButton", header, { Size = UDim2.new(0, 30, 0, 30), Position = UDim2.new(1, offset, 0, 7), BackgroundTransparency = 1, Image = "rbxassetid://"..img, ScaleType = Enum.ScaleType.Fit, Visible = visible, ZIndex = 104 })
+    return create("ImageButton", header, { Size = UDim2.new(0, 30, 0, 30), Position = UDim2.new(1, offset, 0, 10), BackgroundTransparency = 1, Image = "rbxassetid://"..img, ScaleType = Enum.ScaleType.Fit, Visible = visible, ZIndex = 104 })
 end
 
-local closeButton = createHeaderBtn("98235327129327", -38, true)
-local folderTabBtn = createHeaderBtn("76429920789174", -75, true)
-local saveSkinBtn = createHeaderBtn("124334702798776", -75, false)
-local databaseReturnBtn = createHeaderBtn("107874661558482", -75, false)
+local closeButton, folderTabBtn = createHeaderBtn("98235327129327", -38, true), createHeaderBtn("76429920789174", -75, true)
+local saveSkinBtn, databaseReturnBtn = createHeaderBtn("124334702798776", -75, false), createHeaderBtn("107874661558482", -75, false)
 
-local listPage = create("ScrollingFrame", main, { Size = UDim2.new(1, -20, 1, -65), Position = UDim2.new(0, 10, 0, 52), BackgroundTransparency = 1, ScrollBarThickness = 3, ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255), ZIndex = 102, AutomaticCanvasSize = Enum.AutomaticSize.Y })
+local searchContainer = create("Frame", main, { Size = UDim2.new(1, -20, 0, 32), Position = UDim2.new(0, 10, 0, 52), BackgroundColor3 = Color3.fromRGB(10, 10, 10), ZIndex = 102 }, 6)
+create("UIStroke", searchContainer, { Color = Color3.fromRGB(60, 60, 60), Thickness = 1 })
+local searchBox = create("TextBox", searchContainer, { Size = UDim2.new(1, -35, 1, 0), Position = UDim2.new(0, 10, 0, 0), BackgroundTransparency = 1, Text = "", PlaceholderText = "Digite o nome do jogador...", TextColor3 = Color3.fromRGB(255, 255, 255), PlaceholderColor3 = Color3.fromRGB(130, 130, 130), Font = ARCADE_FONT, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, ClearTextOnFocus = false, ZIndex = 103 })
+local searchClearBtn = create("TextButton", searchContainer, { Size = UDim2.new(0, 25, 1, 0), Position = UDim2.new(1, -25, 0, 0), BackgroundTransparency = 1, Text = "X", TextColor3 = Color3.fromRGB(180, 180, 180), Font = ARCADE_FONT, TextSize = 14, ZIndex = 103 })
+
+local listPage = create("ScrollingFrame", main, { Size = UDim2.new(1, -20, 1, -95), Position = UDim2.new(0, 10, 0, 90), BackgroundTransparency = 1, BorderSizePixel = 0, VerticalScrollBarInset = Enum.ScrollBarInset.None, ScrollBarThickness = 3, ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255), ZIndex = 102, AutomaticCanvasSize = Enum.AutomaticSize.Y })
 create("UIListLayout", listPage, { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder })
 
-local detailPage = create("Frame", main, { Size = UDim2.new(1, 0, 1, -45), Position = UDim2.new(0, 0, 0, 45), BackgroundTransparency = 1, Visible = false, ZIndex = 102 })
-local gridScroll = create("ScrollingFrame", detailPage, { Size = UDim2.new(1, -20, 1, -65), Position = UDim2.new(0, 10, 0, 5), BackgroundTransparency = 1, ScrollBarThickness = 3, ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255), ZIndex = 103, AutomaticCanvasSize = Enum.AutomaticSize.Y })
+local detailPage = create("Frame", main, { Size = UDim2.new(1, 0, 1, -50), Position = UDim2.new(0, 0, 0, 50), BackgroundTransparency = 1, Visible = false, ZIndex = 102 })
+local gridScroll = create("ScrollingFrame", detailPage, { Size = UDim2.new(1, -20, 1, -65), Position = UDim2.new(0, 10, 0, 5), BackgroundTransparency = 1, BorderSizePixel = 0, VerticalScrollBarInset = Enum.ScrollBarInset.None, ScrollBarThickness = 3, ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255), ZIndex = 103, AutomaticCanvasSize = Enum.AutomaticSize.Y })
 create("UIGridLayout", gridScroll, { CellSize = UDim2.new(0, 82, 0, 115), CellPadding = UDim2.new(0, 8, 0, 8) })
 
--- Pop-ups
 local confirmGui = create("Frame", sg, { Size = UDim2.new(0, 240, 0, 180), Position = UDim2.new(0.5, -120, 0.5, -90), BackgroundColor3 = Color3.fromRGB(0, 0, 0), Visible = false, ZIndex = 2000 }, 8)
 create("UIStroke", confirmGui, { Color = Color3.fromRGB(255, 255, 255), Thickness = 3 })
-local cMsg = create("TextLabel", confirmGui, { Size = UDim2.new(1, -20, 0, 50), Position = UDim2.new(0, 10, 0, 10), Text = "", TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.FredokaOne, TextSize = 15, BackgroundTransparency = 1, TextWrapped = true, ZIndex = 2001 })
-local confirmBtn = create("TextButton", confirmGui, { Size = UDim2.new(1, -30, 0, 40), Position = UDim2.new(0, 15, 0, 75), BackgroundTransparency = 1, Text = "COPIAR ID", TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.FredokaOne, TextSize = 18, ZIndex = 2002 })
-local cancelBtn = create("TextButton", confirmGui, { Size = UDim2.new(1, -30, 0, 40), Position = UDim2.new(0, 15, 0, 120), BackgroundTransparency = 1, Text = "CANCELAR", TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.FredokaOne, TextSize = 18, ZIndex = 2002 })
+local cMsg = create("TextLabel", confirmGui, { Size = UDim2.new(1, -20, 0, 50), Position = UDim2.new(0, 10, 0, 10), Text = "", TextColor3 = Color3.fromRGB(255, 255, 255), Font = ARCADE_FONT, TextSize = 14, BackgroundTransparency = 1, TextWrapped = true, ZIndex = 2001 })
+local confirmBtn = create("TextButton", confirmGui, { Size = UDim2.new(1, -30, 0, 40), Position = UDim2.new(0, 15, 0, 75), BackgroundTransparency = 1, Text = "COPIAR ID", TextColor3 = Color3.fromRGB(255, 255, 255), Font = ARCADE_FONT, TextSize = 16, ZIndex = 2002 })
+local cancelBtn = create("TextButton", confirmGui, { Size = UDim2.new(1, -30, 0, 40), Position = UDim2.new(0, 15, 0, 120), BackgroundTransparency = 1, Text = "CANCELAR", TextColor3 = Color3.fromRGB(255, 255, 255), Font = ARCADE_FONT, TextSize = 16, ZIndex = 2002 })
 
 local renameGui = create("Frame", sg, { Size = UDim2.new(0, 260, 0, 150), Position = UDim2.new(0.5, -130, 0.5, -75), BackgroundColor3 = Color3.fromRGB(10, 10, 10), Visible = false, ZIndex = 3000 }, 8)
 create("UIStroke", renameGui, { Color = Color3.fromRGB(255, 255, 255), Thickness = 2 })
-create("TextLabel", renameGui, { Size = UDim2.new(1, 0, 0, 35), Text = "NOVO NOME DA SKIN:", TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.FredokaOne, TextSize = 14, BackgroundTransparency = 1, ZIndex = 3001 })
+create("TextLabel", renameGui, { Size = UDim2.new(1, 0, 0, 35), Text = "NOVO NOME DA SKIN:", TextColor3 = Color3.fromRGB(255, 255, 255), Font = ARCADE_FONT, TextSize = 14, BackgroundTransparency = 1, ZIndex = 3001 })
 local renameInput = create("TextBox", renameGui, { Size = UDim2.new(1, -30, 0, 35), Position = UDim2.new(0, 15, 0, 45), BackgroundColor3 = Color3.fromRGB(25, 25, 25), Text = "", TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.GothamBold, TextSize = 13, ClearTextOnFocus = false, ZIndex = 3001 }, 4)
 create("UIStroke", renameInput, { Color = Color3.fromRGB(60, 60, 60), Thickness = 1 })
-local renameConfirmBtn = create("TextButton", renameGui, { Size = UDim2.new(0, 105, 0, 35), Position = UDim2.new(0, 15, 0, 100), BackgroundColor3 = Color3.fromRGB(30, 30, 30), Text = "CONFIRMAR", TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.FredokaOne, TextSize = 12, ZIndex = 3001 }, 4)
-local renameCancelBtn = create("TextButton", renameGui, { Size = UDim2.new(0, 105, 0, 35), Position = UDim2.new(1, -120, 0, 100), BackgroundColor3 = Color3.fromRGB(30, 30, 30), Text = "CANCELAR", TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.FredokaOne, TextSize = 12, ZIndex = 3001 }, 4)
+local renameConfirmBtn = create("TextButton", renameGui, { Size = UDim2.new(0, 105, 0, 35), Position = UDim2.new(0, 15, 0, 100), BackgroundColor3 = Color3.fromRGB(30, 30, 30), Text = "CONFIRMAR", TextColor3 = Color3.fromRGB(255, 255, 255), Font = ARCADE_FONT, TextSize = 12, ZIndex = 3001 }, 4)
+local renameCancelBtn = create("TextButton", renameGui, { Size = UDim2.new(0, 105, 0, 35), Position = UDim2.new(1, -120, 0, 100), BackgroundColor3 = Color3.fromRGB(30, 30, 30), Text = "CANCELAR", TextColor3 = Color3.fromRGB(255, 255, 255), Font = ARCADE_FONT, TextSize = 12, ZIndex = 3001 }, 4)
 
--- Botão Voltar unificado no rodapé para quando estiver em sub-abas
-local footerDatabaseReturnBtn = create("TextButton", main, { Size = UDim2.new(1, -20, 0, 35), Position = UDim2.new(0, 10, 1, -45), BackgroundColor3 = Color3.fromRGB(20, 20, 20), Text = "VOLTAR PARA LISTA", TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.GothamBold, TextSize = 12, Visible = false, ZIndex = 149 }, 6)
+local footerDatabaseReturnBtn = create("TextButton", main, { Size = UDim2.new(1, -20, 0, 35), Position = UDim2.new(0, 10, 1, -45), BackgroundColor3 = Color3.fromRGB(20, 20, 20), Text = "VOLTAR PARA LISTA", TextColor3 = Color3.fromRGB(255, 255, 255), Font = ARCADE_FONT, TextSize = 14, Visible = false, ZIndex = 149 }, 6)
 create("UIStroke", footerDatabaseReturnBtn, { Color = Color3.fromRGB(35, 35, 35), Thickness = 1 })
-
--- Botão Voltar da página de Detalhes
-local bk = create("TextButton", detailPage, { Size = UDim2.new(1, -20, 0, 35), Position = UDim2.new(0, 10, 1, -40), BackgroundColor3 = Color3.fromRGB(20, 20, 20), Text = "VOLTAR PARA LISTA", TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.GothamBold, TextSize = 12, ZIndex = 110 }, 6)
+local bk = create("TextButton", detailPage, { Size = UDim2.new(1, -20, 0, 35), Position = UDim2.new(0, 10, 1, -40), BackgroundColor3 = Color3.fromRGB(20, 20, 20), Text = "VOLTAR PARA LISTA", TextColor3 = Color3.fromRGB(255, 255, 255), Font = ARCADE_FONT, TextSize = 14, ZIndex = 110 }, 6)
 create("UIStroke", bk, { Color = Color3.fromRGB(35, 35, 35), Thickness = 1 })
 
 local function updateVisibility()
     if not main.Visible then return end
-    local isDetail = detailPage.Visible
-    
-    folderTabBtn.Visible = not isDetail and (currentTab == "Players")
-    databaseReturnBtn.Visible = not isDetail and (currentTab ~= "Players")
-    footerDatabaseReturnBtn.Visible = databaseReturnBtn.Visible
-    saveSkinBtn.Visible = isDetail and (currentTab == "Players")
-    
-    listPage.Size = UDim2.new(1, -20, 1, isDetail and -65 or (currentTab == "Players" and -65 or -115))
+    local isDetail, isPlayers = detailPage.Visible, (currentTab == "Players")
+    folderTabBtn.Visible = not isDetail and isPlayers
+    databaseReturnBtn.Visible = not isDetail and not isPlayers
+    saveSkinBtn.Visible = isDetail and isPlayers
+    footerDatabaseReturnBtn.Visible = not isDetail and not isPlayers
+
+    searchContainer.Visible = not isDetail and isPlayers
+    listPage.Position = (not isDetail and isPlayers) and UDim2.new(0, 10, 0, 90) or UDim2.new(0, 10, 0, 52)
+    listPage.Size = UDim2.new(1, -20, 1, (not isDetail and isPlayers) and -95 or ((not isDetail and not isPlayers) and -115 or -65))
 end
 
--- === LÓGICA DE ATUALIZAÇÃO === --
-local function createCard(id, defName)
+-- ============================================================
+-- [NOVO] SISTEMA DE PREVIEW 3D + TRY-ON INSTANTÂNEO
+-- ============================================================
+
+-- Reconstruct HumanoidDescription from the "raw" table used by this script.
+-- The raw table format is: { Shirt, Pants, Face, BodyParts = {Head,...}, Accessories = {id,...}, Animations = {Idle,...} }
+local function parseAssetId(val)
+    if not val then return nil end
+    if type(val) == "number" then return val > 0 and val or nil end
+    local digits = string.match(tostring(val), "%d+")
+    return digits and tonumber(digits) or nil
+end
+
+local function buildDescriptionFromRaw(raw)
+    if type(raw) ~= "table" then return nil end
+    local desc = Instance.new("HumanoidDescription")
+
+    local function setNum(prop, value)
+        local id = parseAssetId(value)
+        if id then pcall(function() desc[prop] = id end) end
+    end
+
+    setNum("Shirt", raw.Shirt)
+    setNum("Pants", raw.Pants)
+    setNum("Face", raw.Face)
+    setNum("GraphicTShirt", raw.GraphicTShirt)
+
+    if type(raw.BodyParts) == "table" then
+        setNum("Head", raw.BodyParts.Head)
+        setNum("Torso", raw.BodyParts.Torso)
+        setNum("LeftArm", raw.BodyParts.LeftArm)
+        setNum("RightArm", raw.BodyParts.RightArm)
+        setNum("LeftLeg", raw.BodyParts.LeftLeg)
+        setNum("RightLeg", raw.BodyParts.RightLeg)
+    end
+
+    if type(raw.Animations) == "table" then
+        setNum("IdleAnimation", raw.Animations.Idle)
+        setNum("WalkAnimation", raw.Animations.Walk)
+        setNum("RunAnimation", raw.Animations.Run)
+        setNum("JumpAnimation", raw.Animations.Jump)
+        setNum("FallAnimation", raw.Animations.Fall)
+        setNum("ClimbAnimation", raw.Animations.Climb)
+        setNum("SwimAnimation", raw.Animations.Swim)
+        setNum("SwimIdleAnimation", raw.Animations.SwimIdle)
+        setNum("MoodAnimation", raw.Animations.Mood)
+    end
+
+    if type(raw.Accessories) == "table" then
+        local accessories = {}
+        for _, accId in ipairs(raw.Accessories) do
+            local parsed = parseAssetId(accId)
+            if parsed then
+                table.insert(accessories, {
+                    AssetId = parsed,
+                    AccessoryType = Enum.AccessoryType.Hat,
+                    IsLayered = false,
+                })
+            end
+        end
+        if #accessories > 0 then
+            pcall(function() desc:SetAccessories(accessories, true) end)
+        end
+    end
+
+    return desc
+end
+
+-- Detect rig type of a player (R6 vs R15) — for previews of other players
+local function detectRigType(player)
+    local hum = player and player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+    return hum and hum.RigType or Enum.HumanoidRigType.R15
+end
+
+-- Detect rig type from raw data (BodyParts presence of R6 parts)
+local function detectRigTypeFromRaw(raw)
+    if type(raw) ~= "table" or type(raw.BodyParts) ~= "table" then return Enum.HumanoidRigType.R15 end
+    local bp = raw.BodyParts
+    -- R6 has Torso; R15 has UpperTorso/LowerTorso in description, but the raw table here only stores Head/Torso/Arms/Legs (R6-style).
+    if bp.Torso and bp.Torso ~= 0 then return Enum.HumanoidRigType.R6 end
+    return Enum.HumanoidRigType.R15
+end
+
+-- LRU cache of preview models
+local PREVIEW_CACHE_LIMIT = 16
+local previewCache, previewCacheOrder = {}, {}
+
+local function clearPreviewCache()
+    for _, model in pairs(previewCache) do pcall(function() model:Destroy() end) end
+    table.clear(previewCache)
+    table.clear(previewCacheOrder)
+end
+
+local function touchPreviewCache(key)
+    for i = #previewCacheOrder, 1, -1 do
+        if previewCacheOrder[i] == key then table.remove(previewCacheOrder, i) end
+    end
+    table.insert(previewCacheOrder, key)
+    while #previewCacheOrder > PREVIEW_CACHE_LIMIT do
+        local oldKey = table.remove(previewCacheOrder, 1)
+        local oldModel = previewCache[oldKey]
+        previewCache[oldKey] = nil
+        pcall(function() if oldModel then oldModel:Destroy() end end)
+    end
+end
+
+local function getPreviewKey(raw, rigType)
+    local ok, encoded = pcall(function()
+        return HttpService:JSONEncode({ Raw = raw, Rig = tostring(rigType) })
+    end)
+    return ok and encoded or tostring(raw)
+end
+
+local function buildPreviewTemplate(raw, rigType, cacheKey)
+    local desc = buildDescriptionFromRaw(raw)
+    if not desc then return nil end
+
+    local ok, model = pcall(function()
+        if type(Players.CreateHumanoidModelFromDescriptionAsync) == "function" then
+            return Players:CreateHumanoidModelFromDescriptionAsync(desc, rigType)
+        end
+        return Players:CreateHumanoidModelFromDescription(desc, rigType)
+    end)
+    pcall(function() desc:Destroy() end)
+
+    if not ok or not model or not model:IsA("Model") then
+        if model and typeof(model) == "Instance" then pcall(function() model:Destroy() end) end
+        return nil
+    end
+
+    model.Parent = nil
+    model:PivotTo(CFrame.new(0, 0, 0))
+
+    if cacheKey then
+        previewCache[cacheKey] = model
+        touchPreviewCache(cacheKey)
+    end
+    return model
+end
+
+-- ============================================================
+-- [NOVO] UI DO PREVIEW 3D
+-- ============================================================
+
+local hoverPreview = create("Frame", sg, {
+    Name = "AvatarHoverPreview",
+    Size = UDim2.new(0, 200, 0, 260),
+    BackgroundColor3 = Color3.fromRGB(8, 8, 8),
+    Visible = false,
+    ZIndex = 1500,
+}, 8)
+create("UIStroke", hoverPreview, { Color = Color3.fromRGB(255, 255, 255), Thickness = 2 })
+
+local hoverTitle = create("TextLabel", hoverPreview, {
+    Size = UDim2.new(1, -16, 0, 22), Position = UDim2.new(0, 8, 0, 6),
+    BackgroundTransparency = 1, Text = "PREVIEW 3D",
+    TextColor3 = Color3.fromRGB(255, 255, 255), Font = ARCADE_FONT, TextSize = 11,
+    TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 1502,
+})
+
+local hoverViewportHolder = create("Frame", hoverPreview, {
+    Size = UDim2.new(1, -16, 1, -80), Position = UDim2.new(0, 8, 0, 30),
+    BackgroundColor3 = Color3.fromRGB(4, 4, 4), BorderSizePixel = 0, ClipsDescendants = true,
+    ZIndex = 1501,
+}, 6)
+create("UIStroke", hoverViewportHolder, { Color = Color3.fromRGB(45, 45, 45), Thickness = 1 })
+
+local hoverStatus = create("TextLabel", hoverViewportHolder, {
+    Size = UDim2.new(1, -12, 1, -12), Position = UDim2.new(0, 6, 0, 6),
+    BackgroundTransparency = 1, Text = "Carregando...",
+    TextColor3 = Color3.fromRGB(150, 150, 150), Font = ARCADE_FONT, TextSize = 10,
+    TextWrapped = true, TextXAlignment = Enum.TextXAlignment.Center,
+    TextYAlignment = Enum.TextYAlignment.Center, ZIndex = 1503,
+})
+
+local hoverName = create("TextLabel", hoverPreview, {
+    Size = UDim2.new(1, -16, 0, 22), Position = UDim2.new(0, 8, 1, -28),
+    BackgroundTransparency = 1, Text = "",
+    TextColor3 = Color3.fromRGB(220, 220, 220), Font = Enum.Font.GothamBold, TextSize = 11,
+    TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd,
+    ZIndex = 1502,
+})
+
+-- Preview state
+local previewToken = 0
+local previewModel, previewViewport, previewConnection = nil, nil, nil
+local previewButton = nil
+
+local function stopHoverPreview()
+    previewToken += 1
+    previewButton = nil
+    if previewConnection then pcall(function() previewConnection:Disconnect() end) previewConnection = nil end
+    if previewModel then pcall(function() previewModel:Destroy() end) previewModel = nil end
+    previewViewport = nil
+    hoverPreview.Visible = false
+end
+
+local function createViewport(parent)
+    local old = parent:FindFirstChild("Preview")
+    if old then old:Destroy() end
+    local vp = create("ViewportFrame", parent, {
+        Name = "Preview", Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = parent.ZIndex + 1,
+    })
+    local wm = create("WorldModel", vp, {})
+    local cam = create("Camera", vp, { FieldOfView = 30 })
+    vp.CurrentCamera = cam
+    return vp, wm, cam
+end
+
+local function positionCamera(cam, model)
+    local head = model:FindFirstChild("Head", true)
+    local root = model:FindFirstChild("HumanoidRootPart", true) or head or model.PrimaryPart
+    if not root then return end
+    local cf, size = model:GetBoundingBox()
+    if size.Magnitude <= 0 then return end
+    local target = cf.Position + Vector3.new(0, size.Y * 0.04, 0)
+    local look = head and head.CFrame.LookVector or root.CFrame.LookVector
+    if look.Magnitude == 0 then look = Vector3.new(0, 0, -1) end
+    local distance = math.max(math.max(size.Y, size.X, size.Z) * 1.85, 5.5)
+    cam.CFrame = CFrame.lookAt(target + look.Unit * distance, target)
+end
+
+local function showHoverPreview(raw, displayName, rigType, anchorButton)
+    if not raw then return end
+    stopHoverPreview()
+    local token = previewToken
+
+    hoverName.Text = tostring(displayName or "Skin")
+    hoverStatus.Text = "Carregando..."
+    hoverStatus.Visible = true
+    hoverPreview.Visible = true
+    previewButton = anchorButton
+
+    -- Position next to the button
+    if anchorButton then
+        local abs = anchorButton.AbsolutePosition
+        local size = anchorButton.AbsoluteSize
+        local x = abs.X + size.X + 8
+        local y = abs.Y - 40
+        -- Clamp inside the screen
+        local cam = workspace.CurrentCamera
+        local vp = cam and cam.ViewportSize or Vector2.new(1920, 1080)
+        local scale = math.max(uiScale.Scale, 0.01)
+        if x + 200 > vp.X then x = abs.X - 208 end
+        if y < 0 then y = 0 end
+        if y + 260 > vp.Y then y = vp.Y - 260 end
+        hoverPreview.Position = UDim2.new(0, x / scale, 0, y / scale)
+    end
+
+    task.spawn(function()
+        local vp, wm, cam = createViewport(hoverViewportHolder)
+        if not vp then
+            hoverStatus.Text = "Erro: viewport"
+            return
+        end
+
+        local key = getPreviewKey(raw, rigType)
+        local template = previewCache[key]
+        if template and template.Parent ~= nil then
+            previewCache[key] = nil
+            template = nil
+        elseif template then
+            touchPreviewCache(key)
+        end
+
+        if not template then
+            template = buildPreviewTemplate(raw, rigType, key)
+        end
+
+        if not template then
+            hoverStatus.Text = "Falha ao gerar preview.\n(Verifique se os IDs são válidos.)"
+            return
+        end
+
+        if token ~= previewToken or not hoverPreview.Visible then return end
+
+        local okClone, model = pcall(function() return template:Clone() end)
+        if not okClone or not model then
+            hoverStatus.Text = "Falha ao clonar."
+            return
+        end
+
+        model.Parent = wm
+        model:PivotTo(CFrame.new(0, 0, 0))
+        previewModel = model
+        previewViewport = vp
+
+        positionCamera(cam, model)
+        cam.FieldOfView = 35
+
+        hoverStatus.Visible = false
+
+        local angle = 0
+        previewConnection = game:GetService("RunService").RenderStepped:Connect(function(dt)
+            if token ~= previewToken or not hoverPreview.Visible or not model.Parent then
+                stopHoverPreview()
+                return
+            end
+            angle += dt * math.rad(70)
+            pcall(function() model:PivotTo(CFrame.Angles(0, angle, 0)) end)
+        end)
+    end)
+end
+
+-- ============================================================
+-- [NOVO] TRY-ON INSTANTÂNEO (clone local + wearRemote em paralelo)
+-- ============================================================
+
+local instantTryOnState = {
+    Model = nil,
+    Conn = nil,
+    Hidden = {}, -- [BasePart] = originalTransparency
+    HiddenDecals = {},
+}
+
+local function isExternalAttachment(instance, character)
+    if instance:FindFirstAncestorOfClass("Tool") or instance:FindFirstAncestorOfClass("VehicleSeat") then return true end
+    -- Only body parts/decals directly under the character
+    local top = instance
+    while top and top.Parent and top.Parent ~= character do top = top.Parent end
+    if not top or top.Parent ~= character then return true end
+    if top:IsA("Accessory") then return false end
+    local bodyNames = {
+        Head = true, HumanoidRootPart = true, Torso = true, UpperTorso = true, LowerTorso = true,
+        ["Left Arm"] = true, ["Right Arm"] = true, ["Left Leg"] = true, ["Right Leg"] = true,
+        LeftUpperArm = true, LeftLowerArm = true, LeftHand = true,
+        RightUpperArm = true, RightLowerArm = true, RightHand = true,
+        LeftUpperLeg = true, LeftLowerLeg = true, LeftFoot = true,
+        RightUpperLeg = true, RightLowerLeg = true, RightFoot = true,
+    }
+    if top:IsA("BasePart") and bodyNames[top.Name] then return false end
+    return true
+end
+
+local function hideInstance(instance, character)
+    if not instance or not character or not instance:IsDescendantOf(character) then return end
+    if isExternalAttachment(instance, character) then return end
+    if instance:IsA("BasePart") then
+        if instantTryOnState.Hidden[instance] == nil then
+            instantTryOnState.Hidden[instance] = instance.LocalTransparencyModifier
+        end
+        instance.LocalTransparencyModifier = 1
+    elseif instance:IsA("Decal") or instance:IsA("Texture") then
+        if instantTryOnState.HiddenDecals[instance] == nil then
+            instantTryOnState.HiddenDecals[instance] = instance.Transparency
+        end
+        instance.Transparency = 1
+    end
+end
+
+local function hideCharacter(character)
+    for _, inst in ipairs(character:GetDescendants()) do
+        hideInstance(inst, character)
+    end
+end
+
+local function restoreCharacter()
+    for part, t in pairs(instantTryOnState.Hidden) do
+        pcall(function() if part and part.Parent then part.LocalTransparencyModifier = t end end)
+    end
+    table.clear(instantTryOnState.Hidden)
+    for decal, t in pairs(instantTryOnState.HiddenDecals) do
+        pcall(function() if decal and decal.Parent then decal.Transparency = t end end)
+    end
+    table.clear(instantTryOnState.HiddenDecals)
+end
+
+local function stopInstantTryOn()
+    if instantTryOnState.Conn then pcall(function() instantTryOnState.Conn:Disconnect() end) instantTryOnState.Conn = nil end
+    if instantTryOnState.Model then pcall(function() instantTryOnState.Model:Destroy() end) instantTryOnState.Model = nil end
+    restoreCharacter()
+end
+
+local function prepareModel(model)
+    local hum = model:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+        hum.RequiresNeck = false
+        hum.AutomaticScalingEnabled = false
+        pcall(function() hum.EvaluateStateMachine = false end)
+        for _, st in ipairs(Enum.HumanoidStateType:GetEnumItems()) do
+            if st ~= Enum.HumanoidStateType.None then pcall(function() hum:SetStateEnabled(st, false) end) end
+        end
+        pcall(function() hum:ChangeState(Enum.HumanoidStateType.None) end)
+    end
+    local root = model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart
+    for _, inst in ipairs(model:GetDescendants()) do
+        if inst:IsA("BasePart") then
+            inst.Anchored = (inst == root)
+            inst.CanCollide = false
+            inst.CanTouch = false
+            inst.CanQuery = false
+            inst.Massless = true
+            inst.LocalTransparencyModifier = 0
+        elseif inst:IsA("Decal") or inst:IsA("Texture") then
+            pcall(function() inst.LocalTransparencyModifier = 0 end)
+        elseif inst:IsA("Script") or inst:IsA("LocalScript") then
+            pcall(function() inst.Disabled = true end)
+        end
+    end
+end
+
+local function getFeetBottomY(model)
+    local names = { "LeftFoot", "RightFoot", "Left Leg", "Right Leg" }
+    local lowest = math.huge
+    local found = false
+    local seen = {}
+    for _, n in ipairs(names) do
+        local foot = model:FindFirstChild(n, true)
+        if foot and foot:IsA("BasePart") and not seen[foot] then
+            seen[foot] = true
+            found = true
+            local half = foot.Size / 2
+            for _, x in ipairs({ -half.X, half.X }) do
+                for _, y in ipairs({ -half.Y, half.Y }) do
+                    for _, z in ipairs({ -half.Z, half.Z }) do
+                        local wp = foot.CFrame:PointToWorldSpace(Vector3.new(x, y, z))
+                        if wp.Y < lowest then lowest = wp.Y end
+                    end
+                end
+            end
+        end
+    end
+    return found and lowest or nil
+end
+
+-- Instant local try-on: builds a clone of the skin, anchors it to the player,
+-- follows the player every frame, hides the real character locally.
+-- Runs in parallel with wearRemote (which does the real server-side apply).
+local function runInstantTryOn(raw, rigType)
+    if type(raw) ~= "table" then return false end
+    if not LP.Character then return false end
+    local character = LP.Character
+    local charRoot = character:FindFirstChild("HumanoidRootPart") or character.PrimaryPart
+    if not charRoot then return false end
+
+    stopInstantTryOn()
+
+    local desc = buildDescriptionFromRaw(raw)
+    if not desc then return false end
+
+    local ok, model = pcall(function()
+        if type(Players.CreateHumanoidModelFromDescriptionAsync) == "function" then
+            return Players:CreateHumanoidModelFromDescriptionAsync(desc, rigType)
+        end
+        return Players:CreateHumanoidModelFromDescription(desc, rigType)
+    end)
+    pcall(function() desc:Destroy() end)
+
+    if not ok or not model or not model:IsA("Model") then
+        if model and typeof(model) == "Instance" then pcall(function() model:Destroy() end) end
+        return false
+    end
+
+    model.Name = "CubnitOmni_InstantTryOn"
+    prepareModel(model)
+    model.Parent = workspace
+
+    local cloneRoot = model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart or model:FindFirstChild("Head", true)
+    if not cloneRoot then
+        pcall(function() model:Destroy() end)
+        return false
+    end
+
+    -- Compute feet offset (clone feet vs player feet)
+    local charFeet = getFeetBottomY(character)
+    local cloneFeet = getFeetBottomY(model)
+    local yOffset = (charFeet and cloneFeet) and (charFeet - cloneFeet) or 0
+
+    cloneRoot.CFrame = charRoot.CFrame + Vector3.new(0, yOffset, 0)
+
+    -- Hide the real character locally
+    hideCharacter(character)
+
+    instantTryOnState.Model = model
+
+    -- Follow the player every frame
+    instantTryOnState.Conn = game:GetService("RunService").RenderStepped:Connect(function()
+        if not instantTryOnState.Model or not instantTryOnState.Model.Parent then
+            stopInstantTryOn()
+            return
+        end
+        if not LP.Character or not LP.Character.Parent then
+            stopInstantTryOn()
+            return
+        end
+        local cRoot = LP.Character:FindFirstChild("HumanoidRootPart") or LP.Character.PrimaryPart
+        if not cRoot then return end
+        local r = instantTryOnState.Model:FindFirstChild("HumanoidRootPart") or instantTryOnState.Model.PrimaryPart
+        if not r then return end
+        r.CFrame = cRoot.CFrame + Vector3.new(0, yOffset, 0)
+        -- Re-hide character parts in case they got restored by external scripts
+        for part, t in pairs(instantTryOnState.Hidden) do
+            if part and part.Parent and part.LocalTransparencyModifier ~= 1 then
+                part.LocalTransparencyModifier = 1
+            end
+        end
+    end)
+
+    return true
+end
+
+-- ============================================================
+-- FIM DO SISTEMA NOVO
+-- ============================================================
+
+local function clonarSkinBrookhaven(skinData)
+    if not wearRemote then return end
+    local character = LP.Character or LP.CharacterAdded:Wait()
+    local humanoid = character:WaitForChild("Humanoid")
+    local tentacles, maxTentativas = 0, 2
+
+    repeat
+        tentacles = tentacles + 1
+        local success, appliedDescription = pcall(function() return humanoid:GetAppliedDescription() end)
+        if not success or not appliedDescription then break end
+        local itensRestantes = 0
+        for _, acessorio in ipairs(appliedDescription:GetAccessories(true)) do
+            if acessorio.AssetId and tonumber(acessorio.AssetId) ~= 0 then
+                itensRestantes = itensRestantes + 1 pcall(function() wearRemote:InvokeServer(tonumber(acessorio.AssetId)) end) task.wait(0.9)
+            end
+        end
+        if appliedDescription.Shirt and tonumber(appliedDescription.Shirt) ~= 0 then
+            itensRestantes = itensRestantes + 1 pcall(function() wearRemote:InvokeServer(tonumber(appliedDescription.Shirt)) end) task.wait(0.9)
+        end
+        if appliedDescription.Pants and tonumber(appliedDescription.Pants) ~= 0 then
+            itensRestantes = itensRestantes + 1 pcall(function() wearRemote:InvokeServer(tonumber(appliedDescription.Pants)) end) task.wait(0.9)
+        end
+        if appliedDescription.Head and tonumber(appliedDescription.Head) ~= 0 and tonumber(appliedDescription.Head) ~= 4843936835 then
+            itensRestantes = itensRestantes + 1 pcall(function() wearRemote:InvokeServer(tonumber(appliedDescription.Head)) end) task.wait(0.9)
+        end
+        task.wait(0.5)
+    until itensRestantes == 0 or tentacles >= maxTentativas
+
+    if skinData.BodyParts then
+        for partName, partId in pairs(skinData.BodyParts) do
+            if partId and tonumber(partId) ~= 0 and tonumber(partId) ~= 4843936835 then pcall(function() wearRemote:InvokeServer(tonumber(partId)) end) task.wait(0.9) end
+        end
+    end
+
+    if skinData.Shirt and tonumber(skinData.Shirt) ~= 0 then pcall(function() wearRemote:InvokeServer(tonumber(skinData.Shirt)) end) task.wait(0.9) end
+    if skinData.Pants and tonumber(skinData.Pants) ~= 0 then pcall(function() wearRemote:InvokeServer(tonumber(skinData.Pants)) end) task.wait(0.9) end
+    if skinData.Face and tonumber(skinData.Face) ~= 0 then pcall(function() wearRemote:InvokeServer(tonumber(skinData.Face)) end) task.wait(0.9) end
+
+    if skinData.Accessories then
+        for _, accId in ipairs(skinData.Accessories) do
+            if tonumber(accId) ~= 0 then pcall(function() wearRemote:InvokeServer(tonumber(accId)) end) task.wait(0.9) end
+        end
+    end
+
+    if skinData.Animations then
+        for animName, animId in pairs(skinData.Animations) do
+            if animId and tonumber(animId) ~= 0 then
+                pcall(function() wearRemote:InvokeServer(tonumber(animId)) end)
+                task.wait(0.9)
+            end
+        end
+    end
+end
+
+-- [NOVO] Wrapper: instant try-on + wearRemote in parallel
+local function applySkinToSelf(raw, displayName)
+    if not raw then return end
+    local rig = detectRigTypeFromRaw(raw)
+    local ok = runInstantTryOn(raw, rig)
+    if ok then
+        -- Schedule cleanup after wearRemote would likely finish.
+        -- wearRemote takes ~0.9s per item; count items roughly.
+        local itemCount = 1
+        if type(raw.Accessories) == "table" then itemCount += #raw.Accessories end
+        if raw.Shirt and tonumber(raw.Shirt) ~= 0 then itemCount += 1 end
+        if raw.Pants and tonumber(raw.Pants) ~= 0 then itemCount += 1 end
+        if raw.Face and tonumber(raw.Face) ~= 0 then itemCount += 1 end
+        if type(raw.BodyParts) == "table" then
+            for _, v in pairs(raw.BodyParts) do if tonumber(v) and tonumber(v) ~= 0 then itemCount += 1 end end
+        end
+        local estimatedSeconds = itemCount * 0.9 + 1.5
+        task.delay(estimatedSeconds, function()
+            -- Only stop if wearRemote didn't already re-apply (avoid nuking real avatar)
+            -- The user's real avatar will be visually replaced by wearRemote. We just remove our clone.
+            stopInstantTryOn()
+        end)
+    end
+    -- Fire the real Brookhaven wear (slow, server-side)
+    task.spawn(clonarSkinBrookhaven, raw)
+end
+
+local function createCard(id, defName, isAnimation)
     if not id or tostring(id) == "0" or id == "" then return end
-    local card = create("TextButton", gridScroll, { BackgroundColor3 = Color3.fromRGB(15, 15, 15), Text = "", ZIndex = 104 }, 6)
-    create("UIStroke", card, { Color = Color3.fromRGB(40, 40, 40), Thickness = 1 })
-    create("ImageLabel", card, { Size = UDim2.new(1, -10, 0, 65), Position = UDim2.new(0, 5, 0, 5), BackgroundTransparency = 1, Image = "rbxthumb://type=Asset&id=" .. id .. "&w=150&h=150", ZIndex = 105 })
+
+    local card = create("TextButton", gridScroll, { BackgroundColor3 = isAnimation and Color3.fromRGB(20, 15, 30) or Color3.fromRGB(15, 15, 15), Text = "", ZIndex = 104 }, 6)
+    create("UIStroke", card, { Color = isAnimation and Color3.fromRGB(230, 110, 20) or Color3.fromRGB(40, 40, 40), Thickness = 1 })
+
+    local imgLabel = create("ImageLabel", card, { Size = UDim2.new(1, -10, 0, 65), Position = UDim2.new(0, 5, 0, 5), BackgroundTransparency = 1, Image = "rbxthumb://type=Asset&id=" .. id .. "&w=150&h=150", ZIndex = 105 })
     local label = create("TextLabel", card, { Size = UDim2.new(1, -6, 0, 35), Position = UDim2.new(0, 3, 1, -45), Text = "...", TextColor3 = Color3.fromRGB(200, 200, 200), TextSize = 8, Font = Enum.Font.Gotham, TextWrapped = true, BackgroundTransparency = 1, ZIndex = 105 })
-    
+
     task.spawn(function()
         local s, info = pcall(Marketplace.GetProductInfo, Marketplace, id)
-        label.Text = s and info and info.Name or defName
+        if s and info then
+            label.Text = info.Name
+            if isAnimation or info.AssetTypeId == 24 then
+                imgLabel.Image = "rbxthumb://type=Asset&id=" .. id .. "&w=150&h=150"
+            end
+        else
+            label.Text = defName
+        end
     end)
+
     card.MouseButton1Click:Connect(function() currentId = id cMsg.Text = "COPIAR ID DO: " .. defName:upper() confirmGui.Visible = true end)
 end
 
@@ -112,74 +717,220 @@ local function displayAvatarData(name, data)
     if not data then return end
     listPage.Visible, detailPage.Visible = false, true
     title.Text, currentInspectedName, currentInspectedData = "INSPECIONANDO: " .. name:upper(), name, data
+    subTitle.Text = "DETALHES DO AVATAR"
     updateVisibility()
-
     for _, v in pairs(gridScroll:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
+
     createCard(data.Shirt, "Camisa") createCard(data.Pants, "Calça") createCard(data.Face, "Rosto")
     for part, id in pairs(data.BodyParts or {}) do createCard(id, part) end
     for _, accId in ipairs(data.Accessories or {}) do createCard(accId, "Acessório") end
+
+    if data.Animations then
+        for animName, animId in pairs(data.Animations) do
+            createCard(animId, "Anim: " .. animName, true)
+        end
+    end
+
+    -- [NOVO] 3D preview button in detail page
+    local previewBtn = create("TextButton", detailPage, {
+        Size = UDim2.new(0, 120, 0, 30), Position = UDim2.new(0, 10, 0, 5),
+        BackgroundColor3 = Color3.fromRGB(25, 25, 25), Text = "PREVIEW 3D",
+        TextColor3 = Color3.fromRGB(255, 255, 255), Font = ARCADE_FONT, TextSize = 12,
+        ZIndex = 115,
+    }, 6)
+    create("UIStroke", previewBtn, { Color = Color3.fromRGB(70, 70, 70), Thickness = 1 })
+    -- Shift grid down to make room
+    gridScroll.Position = UDim2.new(0, 10, 0, 42)
+    gridScroll.Size = UDim2.new(1, -20, 1, -100)
+    previewBtn.MouseButton1Click:Connect(function()
+        showHoverPreview(data, name, detectRigTypeFromRaw(data), previewBtn)
+    end)
 end
 
 local function clearList() for _, v in pairs(listPage:GetChildren()) do if v:IsA("Frame") or v:IsA("TextButton") then v:Destroy() end end end
 
+local updateSavedList
+
 local function updatePlayerList()
     clearList()
+    local filterText = searchBox.Text:lower()
     local players = Players:GetPlayers()
     table.sort(players, function(a, b) return a == LP or (b ~= LP and a.Name:lower() < b.Name:lower()) end)
+
     for _, p in pairs(players) do
-        local b = create("TextButton", listPage, { Size = UDim2.new(1, -8, 0, 35), BackgroundColor3 = Color3.fromRGB(15, 15, 15), Text = "   " .. (p == LP and "[VOCÊ] " or "") .. p.DisplayName .. " (@" .. p.Name .. ")", TextColor3 = Color3.fromRGB(255, 255, 255), TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 13, ZIndex = 105 }, 6)
-        create("UIStroke", b, { Color = Color3.fromRGB(35, 35, 35), Thickness = 1 })
-        b.MouseButton1Click:Connect(function()
-            local hum = p.Character and p.Character:FindFirstChildOfClass("Humanoid")
-            local s, d = pcall(function() return hum and hum:GetAppliedDescription(hum) end)
-            if s and d then
-                local raw = { Shirt = d.Shirt, Pants = d.Pants, Face = d.Face, Accessories = {}, BodyParts = { Head = d.Head, Torso = d.Torso, LeftArm = d.LeftArm, RightArm = d.RightArm, LeftLeg = d.LeftLeg, RightLeg = d.RightLeg } }
-                for _, a in ipairs(d:GetAccessories(true)) do if a.AssetId and a.AssetId ~= 0 then table.insert(raw.Accessories, a.AssetId) end end
-                displayAvatarData(p.Name, raw)
+        local dispName = p.DisplayName:lower()
+        local username = p.Name:lower()
+
+        if filterText == "" or dispName:find(filterText, 1, true) or username:find(filterText, 1, true) then
+            local cardBtn = create("TextButton", listPage, { Size = UDim2.new(1, -8, 0, 38), BackgroundColor3 = Color3.fromRGB(12, 12, 12), Text = "", ZIndex = 105 }, 6)
+            create("UIStroke", cardBtn, { Color = Color3.fromRGB(35, 35, 35), Thickness = 1 })
+
+            create("ImageLabel", cardBtn, { Size = UDim2.new(0, 20, 0, 20), Position = UDim2.new(0, 10, 0.5, -10), BackgroundTransparency = 1, Image = "rbxassetid://92027896399298", ScaleType = Enum.ScaleType.Fit, ZIndex = 106 })
+
+            local txt = (p == LP and "[VOCÊ] " or "") .. p.DisplayName .. " (@" .. p.Name .. ")"
+            create("TextLabel", cardBtn, { Size = UDim2.new(1, -85, 1, 0), Position = UDim2.new(0, 38, 0, 0), BackgroundTransparency = 1, Text = txt, TextColor3 = Color3.fromRGB(255, 255, 255), TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 11, ZIndex = 106 })
+
+            create("ImageLabel", cardBtn, { Size = UDim2.new(0, 22, 0, 22), Position = UDim2.new(1, -20, 0.5, -11), BackgroundTransparency = 1, Image = "rbxassetid://131196469256282", ScaleType = Enum.ScaleType.Fit, ZIndex = 106 })
+
+            -- [NOVO] Build raw data once, reuse for both click and hover preview
+            local function buildRawFromPlayer()
+                local hum = p.Character and p.Character:FindFirstChildOfClass("Humanoid")
+                if not hum then return nil end
+                local s, d = pcall(function() return hum:GetAppliedDescription(hum) end)
+                if not s or not d then return nil end
+                local raw = {
+                    Shirt = d.Shirt, Pants = d.Pants, Face = d.Face,
+                    Accessories = {},
+                    BodyParts = { Head = d.Head, Torso = d.Torso, LeftArm = d.LeftArm, RightArm = d.RightArm, LeftLeg = d.LeftLeg, RightLeg = d.RightLeg },
+                    Animations = {
+                        Idle = d.IdleAnimation, Walk = d.WalkAnimation, Run = d.RunAnimation,
+                        Jump = d.JumpAnimation, Fall = d.FallAnimation, Climb = d.ClimbAnimation, Swim = d.SwimAnimation,
+                    }
+                }
+                for _, a in ipairs(d:GetAccessories(true)) do
+                    if a.AssetId and a.AssetId ~= 0 then table.insert(raw.Accessories, a.AssetId) end
+                end
+                return raw
             end
-        end)
+
+            cardBtn.MouseButton1Click:Connect(function()
+                local raw = buildRawFromPlayer()
+                if raw then displayAvatarData(p.Name, raw) end
+            end)
+
+            -- [NOVO] 3D preview on hover (PC) / long press (mobile)
+            if not UserInputService.TouchEnabled then
+                cardBtn.MouseEnter:Connect(function()
+                    local raw = buildRawFromPlayer()
+                    if raw then
+                        showHoverPreview(raw, p.DisplayName, detectRigType(p), cardBtn)
+                    end
+                end)
+                cardBtn.MouseLeave:Connect(function()
+                    if previewButton == cardBtn then stopHoverPreview() end
+                end)
+            else
+                local pressTime = nil
+                cardBtn.InputBegan:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.Touch then
+                        pressTime = os.clock()
+                        task.delay(0.5, function()
+                            if pressTime and os.clock() - pressTime >= 0.45 and previewButton ~= cardBtn then
+                                local raw = buildRawFromPlayer()
+                                if raw then showHoverPreview(raw, p.DisplayName, detectRigType(p), cardBtn) end
+                            end
+                        end)
+                    end
+                end)
+                cardBtn.InputEnded:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.Touch then
+                        pressTime = nil
+                        if previewButton == cardBtn then stopHoverPreview() end
+                    end
+                end)
+            end
+        end
     end
 end
 
-local function updateSavedList()
-    clearList()
-    local saved = {}
-    modifyFile(function(f) saved = f end)
-    if not next(saved) then
-        create("TextLabel", listPage, { Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 1, Text = "NENHUM AVATAR SALVO.", TextColor3 = Color3.fromRGB(140, 140, 140), Font = Enum.Font.FredokaOne, TextSize = 12 })
-        return
+searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+    if currentTab == "Players" and not detailPage.Visible then
+        updatePlayerList()
     end
-    for uniqueId, item in pairs(saved) do
+end)
+
+searchClearBtn.MouseButton1Click:Connect(function()
+    searchBox.Text = ""
+end)
+
+updateSavedList = function()
+    clearList() local saved = {} modifyFile(function(f) saved = f end)
+    if not next(saved) then
+        create("TextLabel", listPage, { Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 1, Text = "NENHUM AVATAR SALVO.", TextColor3 = Color3.fromRGB(140, 140, 140), Font = ARCADE_FONT, TextSize = 12 }) return
+    end
+
+    local sortedKeys = {}
+    for k in pairs(saved) do table.insert(sortedKeys, k) end
+    table.sort(sortedKeys)
+
+    for _, uniqueId in ipairs(sortedKeys) do
+        local item = saved[uniqueId]
         local container = create("Frame", listPage, { Size = UDim2.new(1, -8, 0, 35), BackgroundColor3 = Color3.fromRGB(15, 15, 15) }, 6)
         create("UIStroke", container, { Color = Color3.fromRGB(45, 45, 45), Thickness = 1 })
-        
-        local b = create("TextButton", container, { Size = UDim2.new(1, -75, 1, 0), BackgroundTransparency = 1, Text = "   " .. item.Name .. " (Salvo em: " .. (item.SavedAt or "n/a") .. ")", TextColor3 = Color3.fromRGB(255, 255, 255), TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 11, ZIndex = 105 })
+
+        local b = create("TextButton", container, { Size = UDim2.new(1, -110, 1, 0), BackgroundTransparency = 1, Text = "    " .. item.Name, TextColor3 = Color3.fromRGB(255, 255, 255), TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 11, ZIndex = 105 })
         b.MouseButton1Click:Connect(function() displayAvatarData(item.Name, item.Data) end)
-        
+
+        -- [NOVO] 3D preview on hover over the saved skin name button
+        if not UserInputService.TouchEnabled then
+            b.MouseEnter:Connect(function()
+                showHoverPreview(item.Data, item.Name, detectRigTypeFromRaw(item.Data), b)
+            end)
+            b.MouseLeave:Connect(function()
+                if previewButton == b then stopHoverPreview() end
+            end)
+        else
+            local pressTime = nil
+            b.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.Touch then
+                    pressTime = os.clock()
+                    task.delay(0.5, function()
+                        if pressTime and os.clock() - pressTime >= 0.45 and previewButton ~= b then
+                            showHoverPreview(item.Data, item.Name, detectRigTypeFromRaw(item.Data), b)
+                        end
+                    end)
+                end
+            end)
+            b.InputEnded:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.Touch then
+                    pressTime = nil
+                    if previewButton == b then stopHoverPreview() end
+                end
+            end)
+        end
+
+        -- [NOVO] Copy skin button: instant try-on + wearRemote in parallel
+        local copySkinBtn = create("ImageButton", container, { Size = UDim2.new(0, 22, 0, 22), Position = UDim2.new(1, -66, 0.5, 0), AnchorPoint = Vector2.new(1, 0.5), BackgroundTransparency = 1, Image = "rbxassetid://133764834615931", ScaleType = Enum.ScaleType.Fit, ZIndex = 106 })
+        copySkinBtn.MouseButton1Click:Connect(function()
+            -- Instant local try-on (instant feedback)
+            applySkinToSelf(item.Data, item.Name)
+        end)
+
         local function createActionBtn(img, xOffset, cb)
             local btn = create("ImageButton", container, { Size = UDim2.new(0, 22, 0, 22), Position = UDim2.new(1, xOffset, 0.5, 0), AnchorPoint = Vector2.new(1, 0.5), BackgroundTransparency = 1, Image = "rbxassetid://"..img, ScaleType = Enum.ScaleType.Fit, ZIndex = 106 })
             btn.MouseButton1Click:Connect(cb)
         end
-        
         createActionBtn("105157650009654", -38, function() activeRenameId, renameInput.Text, renameGui.Visible = uniqueId, item.Name, true end)
         createActionBtn("98235327129327", -10, function() modifyFile(function(f) f[uniqueId] = nil end) updateSavedList() end)
     end
 end
 
--- === LÓGICA DOS BOTÕES DE RETORNO === --
 local function returnToMainPlayers()
-    currentTab, title.Text, detailPage.Visible, listPage.Visible = "Players", "INSPECIONADOR DE AVATAR V1 SPANW", false, true
-    updatePlayerList() 
+    currentTab = "Players"
+    title.Text = "INSPECIONADOR DE AVATAR V1 SPANW"
+    subTitle.Text = "LISTA DE JOGADORES • PESQUISE E SELECIONE"
+    detailPage.Visible = false
+    listPage.Visible = true
+    -- Reset grid position after detail page use
+    gridScroll.Position = UDim2.new(0, 10, 0, 5)
+    gridScroll.Size = UDim2.new(1, -20, 1, -65)
+    updatePlayerList()
     updateVisibility()
 end
 
-bk.MouseButton1Click:Connect(function() 
-    detailPage.Visible, listPage.Visible = false, true 
+bk.MouseButton1Click:Connect(function()
+    detailPage.Visible = false
+    listPage.Visible = true
+    -- Reset grid position
+    gridScroll.Position = UDim2.new(0, 10, 0, 5)
+    gridScroll.Size = UDim2.new(1, -20, 1, -65)
     if currentTab == "Players" then
         title.Text = "INSPECIONADOR DE AVATAR V1 SPANW"
+        subTitle.Text = "LISTA DE JOGADORES • PESQUISE E SELECIONE"
         updatePlayerList()
     else
-        title.Text = "INSPECIONANDO AVATARES database V1"
+        title.Text = "Skin Storage INSPECTION"
+        subTitle.Text = "AVATARES SALVOS"
         updateSavedList()
     end
     updateVisibility()
@@ -187,99 +938,98 @@ end)
 
 databaseReturnBtn.MouseButton1Click:Connect(returnToMainPlayers)
 footerDatabaseReturnBtn.MouseButton1Click:Connect(returnToMainPlayers)
-
-closeButton.MouseButton1Click:Connect(function() sg:Destroy() end)
+closeButton.MouseButton1Click:Connect(function() stopHoverPreview() stopInstantTryOn() clearPreviewCache() sg:Destroy() end)
 cancelBtn.MouseButton1Click:Connect(function() confirmGui.Visible = false end)
 renameCancelBtn.MouseButton1Click:Connect(function() renameGui.Visible = false activeRenameId = nil end)
 
 renameConfirmBtn.MouseButton1Click:Connect(function()
     if activeRenameId and renameInput.Text ~= "" then
         modifyFile(function(f) if f[activeRenameId] then f[activeRenameId].Name = renameInput.Text end end)
-        renameGui.Visible, activeRenameId = false, nil
-        updateSavedList()
+        renameGui.Visible, activeRenameId = false, nil updateSavedList()
     end
 end)
 
-saveSkinBtn.MouseButton1Click:Connect(function() 
-    if currentInspectedData and currentInspectedName ~= "" then 
-        modifyFile(function(f)
-            local uid = HttpService:GenerateGUID(false)
-            f[uid] = { Id = uid, Name = currentInspectedName, Data = currentInspectedData, SavedAt = os.date("%d/%m/%Y %H:%M") }
-        end)
-        saveSkinBtn.ImageColor3 = Color3.fromRGB(0, 255, 100)
-        task.wait(0.5)
-        saveSkinBtn.ImageColor3 = Color3.fromRGB(255, 255, 255)
-    end 
-end)
-
 folderTabBtn.MouseButton1Click:Connect(function()
-    currentTab, title.Text, detailPage.Visible, listPage.Visible = "Saved", "INSPECIONANDO AVATARES database V1", false, true
-    updateSavedList() 
+    currentTab = "Database"
+    title.Text = "Skin Storage INSPECTION"
+    subTitle.Text = "AVATARES SALVOS"
+    updateSavedList()
     updateVisibility()
 end)
 
-confirmBtn.MouseButton1Click:Connect(function() 
-    if currentId and setclipboard then setclipboard(tostring(currentId)) confirmBtn.Text = "COPIADO!" task.wait(1) confirmBtn.Text = "COPIAR ID" end 
-    confirmGui.Visible = false 
+saveSkinBtn.MouseButton1Click:Connect(function()
+    if currentInspectedData and currentInspectedName ~= "" then
+        modifyFile(function(f) f[HttpService:GenerateGUID(false)] = { Name = currentInspectedName, Data = currentInspectedData } end)
+        returnToMainPlayers()
+    end
 end)
 
--- Movimentação do Launcher
-launcher.InputBegan:Connect(function(i) 
-    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then 
-        dragging, hasMoved, dStart, sPos = true, false, i.Position, launcher.Position 
-    end 
+confirmBtn.MouseButton1Click:Connect(function() if currentId and setclipboard then setclipboard(tostring(currentId)) confirmGui.Visible = false end end)
+
+launcher.InputBegan:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging, hasMoved, dStart, sPos = true, false, i.Position, launcher.Position end
 end)
 
-UserInputService.InputChanged:Connect(function(i) 
-    if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then 
-        local delta = i.Position - dStart 
-        if delta.Magnitude > 5 then hasMoved = true end
-        launcher.Position = UDim2.new(sPos.X.Scale, sPos.X.Offset + delta.X, sPos.Y.Scale, sPos.Y.Offset + delta.Y) 
-    end 
+UserInputService.InputChanged:Connect(function(i)
+    if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+        local delta = i.Position - dStart if delta.Magnitude > 5 then hasMoved = true end
+        launcher.Position = UDim2.new(sPos.X.Scale, sPos.X.Offset + delta.X, sPos.Y.Scale, sPos.Y.Offset + delta.Y)
+    end
 end)
 
 UserInputService.InputEnded:Connect(function(i)
     if (i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch) and dragging then
         dragging = false
         if not hasMoved then
-            main.Visible = not main.Visible 
-            if main.Visible then 
-                -- Toda vez que abrir através do launcher, reseta estritamente para a aba inicial de jogadores
-                returnToMainPlayers() 
-            end 
+            main.Visible = not main.Visible
+            if main.Visible then
+                if currentTab == "Players" then
+                    if detailPage.Visible then
+                        updateVisibility()
+                    else
+                        updatePlayerList()
+                        updateVisibility()
+                    end
+                else
+                    if detailPage.Visible then
+                        updateVisibility()
+                    else
+                        updateSavedList()
+                        updateVisibility()
+                    end
+                end
+            else
+                stopHoverPreview()
+            end
             confirmGui.Visible, renameGui.Visible = false, false
         end
     end
 end)
 
-local function autoUpdateList() if main.Visible and currentTab == "Players" and not detailPage.Visible then updatePlayerList() end end
-Players.PlayerAdded:Connect(autoUpdateList)
-Players.PlayerRemoving:Connect(autoUpdateList)
-
-print("CUBNIT OMNI v31.10 - Fixed Initial View & Return Actions.")
+launcher.Parent, main.Visible = sg, false
+currentTab, title.Text, subTitle.Text, detailPage.Visible, listPage.Visible = "Players", "INSPECIONADOR DE AVATAR V1 SPANW", "LISTA DE JOGADORES • PESQUISE E SELECIONE", false, true
+updatePlayerList()
 
 --------------------------------------------------
 -- [SPWN] ADAPTADOR PERSISTENTE
 --------------------------------------------------
 task.spawn(function()
-    local scriptId = "CubnitOmniScript"
+    local scriptId = "CubnitOmniWearScript"
     local scriptConfig = {
-        Name = "Inspecionar Avatar",
-        Category = "Inspecionar Avatar",
+        Name = "Inspecionar Avatar (Wear)",
+        Category = "Inspecionar Avatar (Wear)",
         GuiObject = sg,
         OnDestroy = function()
-            -- [SPWN] Espelha closeButton original: apenas destrói a ScreenGui.
-            -- NÃO limpa o arquivo JSON (CubnitOmni_SavedAvatars.json) —
-            -- os avatares salvos pelo usuário DEVEM persistir entre sessões.
+            pcall(function() stopHoverPreview() end)
+            pcall(function() stopInstantTryOn() end)
+            pcall(function() clearPreviewCache() end)
             pcall(function() sg:Destroy() end)
         end
     }
 
-    -- Garante a persistência global na memória
     _G.ScriptManagerQueue = _G.ScriptManagerQueue or {}
     _G.RegisteredScriptDatabase = _G.RegisteredScriptDatabase or {}
 
-    -- [SPWN] Lê visibilidade persistida em vez de hardcoded true
     local persistedVis = sg:GetAttribute("SPWN_ManagedVisibility")
 
     _G.RegisteredScriptDatabase[scriptId] = {

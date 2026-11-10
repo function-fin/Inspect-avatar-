@@ -12,6 +12,7 @@ local C_BORDER = Color3.fromRGB(255, 255, 255)
 local C_TEXT = Color3.fromRGB(255, 255, 255)
 local C_PURPLE = Color3.fromRGB(170, 0, 255) -- Roxo Neon
 local C_DARK = Color3.fromRGB(15, 15, 15)
+local C_BTN = Color3.fromRGB(20, 20, 20)
 
 local function create(className, parent, props, cornerRadius, strokeColor, strokeThick)
     local inst = Instance.new(className)
@@ -48,7 +49,7 @@ UserInputService:GetPropertyChangedSignal("TouchEnabled"):Connect(updateUIScale)
 updateUIScale()
 
 local currentId, currentInspectedData, currentInspectedName, currentTab, activeRenameId = nil, nil, "", "Players", nil
-local main = create("Frame", sg, { Size = UDim2.new(0, 420, 0, 360), Position = UDim2.new(0.5, -210, 0.5, -180), BackgroundColor3 = C_BG, Visible = false, ZIndex = 100 }, 8, C_BORDER, 3)
+local main = create("Frame", sg, { Size = UDim2.new(0, 420, 0, 380), Position = UDim2.new(0.5, -210, 0.5, -190), BackgroundColor3 = C_BG, Visible = false, ZIndex = 100 }, 8, C_BORDER, 3)
 
 local launcher = create("ImageButton", sg, { Name = "OpenToggleButton", Size = UDim2.new(0, 70, 0, 70), Position = UDim2.new(0.05, 0, 0.4, 0), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, Image = "rbxassetid://88903575940312", ScaleType = Enum.ScaleType.Fit, ZIndex = 1000 })
 local dStart, sPos, dragging, hasMoved = nil, nil, false, false
@@ -68,14 +69,14 @@ local folderTabBtn = createHeaderBtn("76429920789174", -80, true)
 local saveSkinBtn = createHeaderBtn("124334702798776", -80, false)
 local databaseReturnBtn = createHeaderBtn("107874661558482", -80, false)
 
--- PESQUISA (Aba Players)
+-- PESQUISA (Aba Players / Database)
 local searchContainer = create("Frame", main, { Size = UDim2.new(1, -24, 0, 34), Position = UDim2.new(0, 12, 0, 60), BackgroundColor3 = C_DARK, ZIndex = 102 }, 8, Color3.fromRGB(60, 60, 60), 1)
 local searchIcon = create("ImageLabel", searchContainer, { Size = UDim2.new(0, 16, 0, 16), Position = UDim2.new(0, 8, 0.5, -8), BackgroundTransparency = 1, Image = "rbxassetid://6031094678", ImageColor3 = Color3.fromRGB(150,150,150), ZIndex = 103 })
-local searchBox = create("TextBox", searchContainer, { Size = UDim2.new(1, -60, 1, 0), Position = UDim2.new(0, 30, 0, 0), BackgroundTransparency = 1, Text = "", PlaceholderText = "Digite o nome do jogador...", TextColor3 = C_TEXT, PlaceholderColor3 = Color3.fromRGB(130, 130, 130), Font = ARCADE_FONT, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, ClearTextOnFocus = false, ZIndex = 103 })
+local searchBox = create("TextBox", searchContainer, { Size = UDim2.new(1, -60, 1, 0), Position = UDim2.new(0, 30, 0, 0), BackgroundTransparency = 1, Text = "", PlaceholderText = "Digite o nome...", TextColor3 = C_TEXT, PlaceholderColor3 = Color3.fromRGB(130, 130, 130), Font = ARCADE_FONT, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, ClearTextOnFocus = false, ZIndex = 103 })
 local searchClearBtn = create("TextButton", searchContainer, { Size = UDim2.new(0, 25, 1, 0), Position = UDim2.new(1, -25, 0, 0), BackgroundTransparency = 1, Text = "X", TextColor3 = Color3.fromRGB(180, 180, 180), Font = ARCADE_FONT, TextSize = 14, ZIndex = 103 })
 
 -- LISTAS
-local listPage = create("ScrollingFrame", main, { Size = UDim2.new(1, -24, 1, -105), Position = UDim2.new(0, 12, 0, 100), BackgroundTransparency = 1, BorderSizePixel = 0, VerticalScrollBarInset = Enum.ScrollBarInset.None, ScrollBarThickness = 3, ScrollBarImageColor3 = C_BORDER, ZIndex = 102, AutomaticCanvasSize = Enum.AutomaticSize.Y })
+local listPage = create("ScrollingFrame", main, { Size = UDim2.new(1, -24, 1, -115), Position = UDim2.new(0, 12, 0, 100), BackgroundTransparency = 1, BorderSizePixel = 0, VerticalScrollBarInset = Enum.ScrollBarInset.None, ScrollBarThickness = 3, ScrollBarImageColor3 = C_BORDER, ZIndex = 102, AutomaticCanvasSize = Enum.AutomaticSize.Y })
 create("UIListLayout", listPage, { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder })
 
 -- PÁGINA DE DETALHES
@@ -105,10 +106,15 @@ local function updateVisibility()
     databaseReturnBtn.Visible = not isDetail and not isPlayers
     saveSkinBtn.Visible = isDetail and isPlayers
     footerDatabaseReturnBtn.Visible = not isDetail and not isPlayers
-    searchContainer.Visible = not isDetail and isPlayers
+    searchContainer.Visible = not isDetail
     
-    listPage.Position = (not isDetail and isPlayers) and UDim2.new(0, 12, 0, 105) or UDim2.new(0, 12, 0, 65)
-    listPage.Size = UDim2.new(1, -24, 1, (not isDetail and isPlayers) and -105 or ((not isDetail and not isPlayers) and -125 or -70))
+    if isDetail then
+        listPage.Visible = false
+    else
+        listPage.Visible = true
+        listPage.Position = UDim2.new(0, 12, 0, 100)
+        listPage.Size = UDim2.new(1, -24, 1, -115)
+    end
 end
 
 -- ============================================================
@@ -357,7 +363,7 @@ end
 local hoverPreview = create("Frame", sg, {
     Name = "AvatarHoverPreview",
     Size = UDim2.new(0, 220, 0, 280),
-    Position = UDim2.new(0.5, 120, 0.5, -120), 
+    Position = UDim2.new(0.5, 130, 0.5, -120), 
     BackgroundColor3 = C_BG,
     Visible = false,
     ZIndex = 1500,
@@ -584,53 +590,74 @@ local function updatePlayerList()
     end
 end
 
-searchBox:GetPropertyChangedSignal("Text"):Connect(function() if currentTab == "Players" and not detailPage.Visible then updatePlayerList() end end)
+searchBox:GetPropertyChangedSignal("Text"):Connect(function() 
+    if currentTab == "Players" and not detailPage.Visible then updatePlayerList() 
+    elseif currentTab == "Database" and not detailPage.Visible then updateSavedList() end 
+end)
 searchClearBtn.MouseButton1Click:Connect(function() searchBox.Text = "" end)
 
 updateSavedList = function()
-    clearList() local saved = {} modifyFile(function(f) saved = f end)
-    if not next(saved) then create("TextLabel", listPage, { Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 1, Text = "NENHUM AVATAR SALVO.", TextColor3 = Color3.fromRGB(140, 140, 140), Font = ARCADE_FONT, TextSize = 12 }) return end
+    clearList() 
+    local saved = {} 
+    modifyFile(function(f) saved = f end)
+    
+    if not next(saved) then 
+        create("TextLabel", listPage, { Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 1, Text = "NENHUM AVATAR SALVO.", TextColor3 = Color3.fromRGB(140, 140, 140), Font = ARCADE_FONT, TextSize = 12 }) 
+        return 
+    end
     
     local sortedKeys = {}
     for k in pairs(saved) do table.insert(sortedKeys, k) end
     table.sort(sortedKeys)
 
+    local filterText = searchBox.Text:lower()
+
     for _, uniqueId in ipairs(sortedKeys) do
         local item = saved[uniqueId]
-        -- Estilo do card da Aba 2 (Modernizado)
-        local container = create("Frame", listPage, { Size = UDim2.new(1, -8, 0, 48), BackgroundColor3 = Color3.fromRGB(10, 10, 10), ZIndex = 104 }, 8, C_BORDER, 2)
-        local b = create("TextButton", container, { Size = UDim2.new(1, -170, 1, 0), BackgroundTransparency = 1, Text = "   " .. item.Name, TextColor3 = C_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 13, ZIndex = 105 })
-        b.MouseButton1Click:Connect(function() displayAvatarData(item.Name, item.Data) end)
-
-        local userIdForPreview = item.Data and item.Data.UserId
-
-        -- Botão COPY
-        local copySkinBtn = create("TextButton", container, { Size = UDim2.new(0, 55, 0, 28), Position = UDim2.new(1, -140, 0.5, -14), BackgroundColor3 = Color3.fromRGB(30, 30, 30), Text = "COPY", TextColor3 = C_TEXT, Font = Enum.Font.Arcade, TextSize = 11, ZIndex = 106 }, 4, Color3.fromRGB(80,80,80), 1)
-        local copyIcon = create("ImageLabel", copySkinBtn, { Size = UDim2.new(0, 12, 0, 12), Position = UDim2.new(0, 6, 0.5, -6), BackgroundTransparency = 1, Image = "rbxassetid://133764834615931", ImageColor3 = C_PURPLE, ZIndex = 107 })
-        create("TextLabel", copySkinBtn, { Size = UDim2.new(1, -20, 1, 0), Position = UDim2.new(0, 20, 0, 0), BackgroundTransparency = 1, Text = "COPY", TextColor3 = C_PURPLE, Font = Enum.Font.Arcade, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 107 })
+        local itemName = tostring(item.Name or "")
         
-        copySkinBtn.MouseButton1Click:Connect(function()
-            local orig = copySkinBtn.BackgroundColor3
-            copySkinBtn.BackgroundColor3 = Color3.fromRGB(60, 0, 90)
-            task.spawn(function()
-                pcall(clonarSkinBrookhaven, item.Data)
-                if copySkinBtn and copySkinBtn.Parent then copySkinBtn.BackgroundColor3 = orig end
+        -- Filtro de busca
+        if filterText == "" or itemName:lower():find(filterText, 1, true) then
+            -- Card UI Estilizado (igual ao da segunda imagem)
+            local container = create("Frame", listPage, { Size = UDim2.new(1, -8, 0, 48), BackgroundColor3 = C_DARK, ZIndex = 104 }, 8, C_BORDER, 2)
+            
+            -- Ícone do Bonequinho
+            create("ImageLabel", container, { Size = UDim2.new(0, 24, 0, 24), Position = UDim2.new(0, 10, 0.5, -12), BackgroundTransparency = 1, Image = "rbxassetid://92027896399298", ScaleType = Enum.ScaleType.Fit, ZIndex = 105 })
+            
+            -- Nome da Skin
+            local b = create("TextButton", container, { Size = UDim2.new(1, -190, 1, 0), Position = UDim2.new(0, 42, 0, 0), BackgroundTransparency = 1, Text = itemName, TextColor3 = C_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 13, ZIndex = 105 })
+            b.MouseButton1Click:Connect(function() displayAvatarData(itemName, item.Data) end)
+
+            local userIdForPreview = item.Data and item.Data.UserId
+
+            -- 1. Botão COPY (Roxo)
+            local copySkinBtn = create("TextButton", container, { Size = UDim2.new(0, 70, 0, 30), Position = UDim2.new(1, -160, 0.5, -15), BackgroundColor3 = C_BTN, Text = "", ZIndex = 106 }, 6, Color3.fromRGB(60, 60, 60), 1)
+            create("ImageLabel", copySkinBtn, { Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new(0, 8, 0.5, -7), BackgroundTransparency = 1, Image = "rbxassetid://133764834615931", ImageColor3 = C_PURPLE, ZIndex = 107 })
+            create("TextLabel", copySkinBtn, { Size = UDim2.new(1, -26, 1, 0), Position = UDim2.new(0, 26, 0, 0), BackgroundTransparency = 1, Text = "COPY", TextColor3 = C_PURPLE, Font = Enum.Font.Arcade, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 107 })
+            
+            copySkinBtn.MouseButton1Click:Connect(function()
+                local origColor = copySkinBtn.BackgroundColor3
+                copySkinBtn.BackgroundColor3 = Color3.fromRGB(40, 0, 60)
+                task.spawn(function()
+                    pcall(clonarSkinBrookhaven, item.Data)
+                    if copySkinBtn and copySkinBtn.Parent then copySkinBtn.BackgroundColor3 = origColor end
+                end)
             end)
-        end)
 
-        -- Botão EDITAR (Lápis)
-        local editBtn = create("ImageButton", container, { Size = UDim2.new(0, 28, 0, 28), Position = UDim2.new(1, -80, 0.5, -14), BackgroundColor3 = Color3.fromRGB(30, 30, 30), Image = "rbxassetid://105157650009654", ScaleType = Enum.ScaleType.Fit, ZIndex = 106 }, 4, Color3.fromRGB(80,80,80), 1)
-        editBtn.MouseButton1Click:Connect(function() activeRenameId, renameInput.Text, renameGui.Visible = uniqueId, item.Name, true end)
+            -- 2. Botão EDITAR
+            local editBtn = create("ImageButton", container, { Size = UDim2.new(0, 30, 0, 30), Position = UDim2.new(1, -84, 0.5, -15), BackgroundColor3 = C_BTN, Image = "rbxassetid://105157650009654", ImageColor3 = C_TEXT, ScaleType = Enum.ScaleType.Fit, ZIndex = 106 }, 6, Color3.fromRGB(60, 60, 60), 1)
+            editBtn.MouseButton1Click:Connect(function() activeRenameId, renameInput.Text, renameGui.Visible = uniqueId, itemName, true end)
 
-        -- Botão EXCLUIR (X)
-        local delBtn = create("ImageButton", container, { Size = UDim2.new(0, 28, 0, 28), Position = UDim2.new(1, -48, 0.5, -14), BackgroundColor3 = Color3.fromRGB(30, 30, 30), Image = "rbxassetid://98235327129327", ScaleType = Enum.ScaleType.Fit, ZIndex = 106 }, 4, Color3.fromRGB(80,80,80), 1)
-        delBtn.MouseButton1Click:Connect(function() modifyFile(function(f) f[uniqueId] = nil end) updateSavedList() end)
+            -- 3. Botão EXCLUIR
+            local delBtn = create("ImageButton", container, { Size = UDim2.new(0, 30, 0, 30), Position = UDim2.new(1, -48, 0.5, -15), BackgroundColor3 = C_BTN, Image = "rbxassetid://98235327129327", ImageColor3 = C_TEXT, ScaleType = Enum.ScaleType.Fit, ZIndex = 106 }, 6, Color3.fromRGB(60, 60, 60), 1)
+            delBtn.MouseButton1Click:Connect(function() modifyFile(function(f) f[uniqueId] = nil end) updateSavedList() end)
 
-        -- Botão 3D (Novo ID 130210093071386)
-        local view3dBtn = create("ImageButton", container, { Size = UDim2.new(0, 28, 0, 28), Position = UDim2.new(1, -16, 0.5, -14), BackgroundColor3 = Color3.fromRGB(30, 30, 30), Image = "rbxassetid://130210093071386", ScaleType = Enum.ScaleType.Fit, ZIndex = 106 }, 4, C_PURPLE, 1)
-        view3dBtn.MouseButton1Click:Connect(function()
-            showHoverPreview(item.Data, item.Name, detectRigTypeFromRaw(item.Data), userIdForPreview)
-        end)
+            -- 4. Botão 3D
+            local view3dBtn = create("ImageButton", container, { Size = UDim2.new(0, 30, 0, 30), Position = UDim2.new(1, -12, 0.5, -15), BackgroundColor3 = C_BTN, Image = "rbxassetid://130210093071386", ImageColor3 = C_TEXT, ScaleType = Enum.ScaleType.Fit, ZIndex = 106 }, 6, C_PURPLE, 1)
+            view3dBtn.MouseButton1Click:Connect(function()
+                showHoverPreview(item.Data, itemName, detectRigTypeFromRaw(item.Data), userIdForPreview)
+            end)
+        end
     end
 end
 

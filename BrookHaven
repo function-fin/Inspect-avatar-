@@ -6,10 +6,22 @@ local wearRemote = remotesFolder and remotesFolder:FindFirstChild("Wear")
 local ARCADE_FONT = Enum.Font.Arcade
 local RUN_SERVICE = game:GetService("RunService")
 
-local function create(className, parent, props, cornerRadius)
+-- Cores do Tema
+local C_BG = Color3.fromRGB(5, 5, 5)
+local C_BORDER = Color3.fromRGB(255, 255, 255)
+local C_TEXT = Color3.fromRGB(255, 255, 255)
+local C_PURPLE = Color3.fromRGB(170, 0, 255) -- Roxo Neon
+local C_DARK = Color3.fromRGB(15, 15, 15)
+
+local function create(className, parent, props, cornerRadius, strokeColor, strokeThick)
     local inst = Instance.new(className)
     for k, v in pairs(props or {}) do inst[k] = v end
     if cornerRadius then Instance.new("UICorner", inst).CornerRadius = UDim.new(0, cornerRadius) end
+    if strokeColor then 
+        local s = Instance.new("UIStroke", inst)
+        s.Color = strokeColor
+        s.Thickness = strokeThick or 2
+    end
     inst.Parent = parent return inst
 end
 
@@ -30,64 +42,61 @@ sg:SetAttribute("SPWN_ManagedScriptCategory", "Inspecionar Avatar (Wear)")
 
 local uiScale = Instance.new("UIScale", sg)
 local function updateUIScale()
-    if not UserInputService.TouchEnabled then
-        uiScale.Scale = 1.7
-    else
-        uiScale.Scale = 1.0
-    end
+    if not UserInputService.TouchEnabled then uiScale.Scale = 1.7 else uiScale.Scale = 1.0 end
 end
 UserInputService:GetPropertyChangedSignal("TouchEnabled"):Connect(updateUIScale)
 updateUIScale()
 
 local currentId, currentInspectedData, currentInspectedName, currentTab, activeRenameId = nil, nil, "", "Players", nil
-local main = create("Frame", sg, { Size = UDim2.new(0, 380, 0, 350), Position = UDim2.new(0.5, -190, 0.5, -175), BackgroundColor3 = Color3.fromRGB(0, 0, 0), Visible = false, ZIndex = 100 }, 8)
-create("UIStroke", main, { Color = Color3.fromRGB(255, 255, 255), Thickness = 3 })
+local main = create("Frame", sg, { Size = UDim2.new(0, 420, 0, 360), Position = UDim2.new(0.5, -210, 0.5, -180), BackgroundColor3 = C_BG, Visible = false, ZIndex = 100 }, 8, C_BORDER, 3)
 
 local launcher = create("ImageButton", sg, { Name = "OpenToggleButton", Size = UDim2.new(0, 70, 0, 70), Position = UDim2.new(0.05, 0, 0.4, 0), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, Image = "rbxassetid://88903575940312", ScaleType = Enum.ScaleType.Fit, ZIndex = 1000 })
 local dStart, sPos, dragging, hasMoved = nil, nil, false, false
 
-local header = create("Frame", main, { Size = UDim2.new(1, 0, 0, 50), BackgroundTransparency = 1, ZIndex = 101 })
-local titleIcon = create("ImageLabel", header, { Size = UDim2.new(0, 32, 0, 32), Position = UDim2.new(0, 10, 0, 9), BackgroundTransparency = 1, Image = "rbxassetid://116917027196473", ScaleType = Enum.ScaleType.Fit, ZIndex = 102 })
-local title = create("TextLabel", header, { Size = UDim2.new(1, -160, 0, 20), Position = UDim2.new(0, 48, 0, 8), Text = "INSPECIONADOR DE AVATAR V1 SPANW", TextColor3 = Color3.fromRGB(255, 255, 255), Font = ARCADE_FONT, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, BackgroundTransparency = 1, ZIndex = 102 })
-local subTitle = create("TextLabel", header, { Size = UDim2.new(1, -160, 0, 14), Position = UDim2.new(0, 48, 0, 28), Text = "LISTA DE JOGADORES • PESQUISE E SELECIONE", TextColor3 = Color3.fromRGB(180, 180, 180), Font = ARCADE_FONT, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, BackgroundTransparency = 1, ZIndex = 102 })
+-- HEADER
+local header = create("Frame", main, { Size = UDim2.new(1, 0, 0, 55), BackgroundTransparency = 1, ZIndex = 101 })
+local titleIcon = create("ImageLabel", header, { Size = UDim2.new(0, 32, 0, 32), Position = UDim2.new(0, 12, 0, 11), BackgroundTransparency = 1, Image = "rbxassetid://116917027196473", ScaleType = Enum.ScaleType.Fit, ZIndex = 102 })
+local title = create("TextLabel", header, { Size = UDim2.new(1, -160, 0, 24), Position = UDim2.new(0, 50, 0, 8), Text = "INSPECIONADOR DE AVATAR V1 SPANW", TextColor3 = C_TEXT, Font = ARCADE_FONT, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left, BackgroundTransparency = 1, ZIndex = 102 })
+local subTitle = create("TextLabel", header, { Size = UDim2.new(1, -160, 0, 16), Position = UDim2.new(0, 50, 0, 28), Text = "LISTA DE JOGADORES • PESQUISE E SELECIONE", TextColor3 = Color3.fromRGB(180, 180, 180), Font = ARCADE_FONT, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, BackgroundTransparency = 1, ZIndex = 102 })
 
 local function createHeaderBtn(img, offset, visible)
-    return create("ImageButton", header, { Size = UDim2.new(0, 30, 0, 30), Position = UDim2.new(1, offset, 0, 10), BackgroundTransparency = 1, Image = "rbxassetid://"..img, ScaleType = Enum.ScaleType.Fit, Visible = visible, ZIndex = 104 })
+    return create("ImageButton", header, { Size = UDim2.new(0, 32, 0, 32), Position = UDim2.new(1, offset, 0, 10), BackgroundTransparency = 1, Image = "rbxassetid://"..img, ScaleType = Enum.ScaleType.Fit, Visible = visible, ZIndex = 104 })
 end
 
-local closeButton, folderTabBtn = createHeaderBtn("98235327129327", -38, true), createHeaderBtn("76429920789174", -75, true)
-local saveSkinBtn, databaseReturnBtn = createHeaderBtn("124334702798776", -75, false), createHeaderBtn("107874661558482", -75, false)
+local closeButton = createHeaderBtn("98235327129327", -40, true)
+local folderTabBtn = createHeaderBtn("76429920789174", -80, true)
+local saveSkinBtn = createHeaderBtn("124334702798776", -80, false)
+local databaseReturnBtn = createHeaderBtn("107874661558482", -80, false)
 
-local searchContainer = create("Frame", main, { Size = UDim2.new(1, -20, 0, 32), Position = UDim2.new(0, 10, 0, 52), BackgroundColor3 = Color3.fromRGB(10, 10, 10), ZIndex = 102 }, 6)
-create("UIStroke", searchContainer, { Color = Color3.fromRGB(60, 60, 60), Thickness = 1 })
-local searchBox = create("TextBox", searchContainer, { Size = UDim2.new(1, -35, 1, 0), Position = UDim2.new(0, 10, 0, 0), BackgroundTransparency = 1, Text = "", PlaceholderText = "Digite o nome do jogador...", TextColor3 = Color3.fromRGB(255, 255, 255), PlaceholderColor3 = Color3.fromRGB(130, 130, 130), Font = ARCADE_FONT, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, ClearTextOnFocus = false, ZIndex = 103 })
+-- PESQUISA (Aba Players)
+local searchContainer = create("Frame", main, { Size = UDim2.new(1, -24, 0, 34), Position = UDim2.new(0, 12, 0, 60), BackgroundColor3 = C_DARK, ZIndex = 102 }, 8, Color3.fromRGB(60, 60, 60), 1)
+local searchIcon = create("ImageLabel", searchContainer, { Size = UDim2.new(0, 16, 0, 16), Position = UDim2.new(0, 8, 0.5, -8), BackgroundTransparency = 1, Image = "rbxassetid://6031094678", ImageColor3 = Color3.fromRGB(150,150,150), ZIndex = 103 })
+local searchBox = create("TextBox", searchContainer, { Size = UDim2.new(1, -60, 1, 0), Position = UDim2.new(0, 30, 0, 0), BackgroundTransparency = 1, Text = "", PlaceholderText = "Digite o nome do jogador...", TextColor3 = C_TEXT, PlaceholderColor3 = Color3.fromRGB(130, 130, 130), Font = ARCADE_FONT, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, ClearTextOnFocus = false, ZIndex = 103 })
 local searchClearBtn = create("TextButton", searchContainer, { Size = UDim2.new(0, 25, 1, 0), Position = UDim2.new(1, -25, 0, 0), BackgroundTransparency = 1, Text = "X", TextColor3 = Color3.fromRGB(180, 180, 180), Font = ARCADE_FONT, TextSize = 14, ZIndex = 103 })
 
-local listPage = create("ScrollingFrame", main, { Size = UDim2.new(1, -20, 1, -95), Position = UDim2.new(0, 10, 0, 90), BackgroundTransparency = 1, BorderSizePixel = 0, VerticalScrollBarInset = Enum.ScrollBarInset.None, ScrollBarThickness = 3, ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255), ZIndex = 102, AutomaticCanvasSize = Enum.AutomaticSize.Y })
-create("UIListLayout", listPage, { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder })
+-- LISTAS
+local listPage = create("ScrollingFrame", main, { Size = UDim2.new(1, -24, 1, -105), Position = UDim2.new(0, 12, 0, 100), BackgroundTransparency = 1, BorderSizePixel = 0, VerticalScrollBarInset = Enum.ScrollBarInset.None, ScrollBarThickness = 3, ScrollBarImageColor3 = C_BORDER, ZIndex = 102, AutomaticCanvasSize = Enum.AutomaticSize.Y })
+create("UIListLayout", listPage, { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder })
 
-local detailPage = create("Frame", main, { Size = UDim2.new(1, 0, 1, -50), Position = UDim2.new(0, 0, 0, 50), BackgroundTransparency = 1, Visible = false, ZIndex = 102 })
-local gridScroll = create("ScrollingFrame", detailPage, { Size = UDim2.new(1, -20, 1, -65), Position = UDim2.new(0, 10, 0, 5), BackgroundTransparency = 1, BorderSizePixel = 0, VerticalScrollBarInset = Enum.ScrollBarInset.None, ScrollBarThickness = 3, ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255), ZIndex = 103, AutomaticCanvasSize = Enum.AutomaticSize.Y })
+-- PÁGINA DE DETALHES
+local detailPage = create("Frame", main, { Size = UDim2.new(1, 0, 1, -55), Position = UDim2.new(0, 0, 0, 55), BackgroundTransparency = 1, Visible = false, ZIndex = 102 })
+local gridScroll = create("ScrollingFrame", detailPage, { Size = UDim2.new(1, -20, 1, -65), Position = UDim2.new(0, 10, 0, 5), BackgroundTransparency = 1, BorderSizePixel = 0, VerticalScrollBarInset = Enum.ScrollBarInset.None, ScrollBarThickness = 3, ScrollBarImageColor3 = C_BORDER, ZIndex = 103, AutomaticCanvasSize = Enum.AutomaticSize.Y })
 create("UIGridLayout", gridScroll, { CellSize = UDim2.new(0, 82, 0, 115), CellPadding = UDim2.new(0, 8, 0, 8) })
 
-local confirmGui = create("Frame", sg, { Size = UDim2.new(0, 240, 0, 180), Position = UDim2.new(0.5, -120, 0.5, -90), BackgroundColor3 = Color3.fromRGB(0, 0, 0), Visible = false, ZIndex = 2000 }, 8)
-create("UIStroke", confirmGui, { Color = Color3.fromRGB(255, 255, 255), Thickness = 3 })
-local cMsg = create("TextLabel", confirmGui, { Size = UDim2.new(1, -20, 0, 50), Position = UDim2.new(0, 10, 0, 10), Text = "", TextColor3 = Color3.fromRGB(255, 255, 255), Font = ARCADE_FONT, TextSize = 14, BackgroundTransparency = 1, TextWrapped = true, ZIndex = 2001 })
-local confirmBtn = create("TextButton", confirmGui, { Size = UDim2.new(1, -30, 0, 40), Position = UDim2.new(0, 15, 0, 75), BackgroundTransparency = 1, Text = "COPIAR ID", TextColor3 = Color3.fromRGB(255, 255, 255), Font = ARCADE_FONT, TextSize = 16, ZIndex = 2002 })
-local cancelBtn = create("TextButton", confirmGui, { Size = UDim2.new(1, -30, 0, 40), Position = UDim2.new(0, 15, 0, 120), BackgroundTransparency = 1, Text = "CANCELAR", TextColor3 = Color3.fromRGB(255, 255, 255), Font = ARCADE_FONT, TextSize = 16, ZIndex = 2002 })
+-- CONFIRM E RENAME
+local confirmGui = create("Frame", sg, { Size = UDim2.new(0, 240, 0, 180), Position = UDim2.new(0.5, -120, 0.5, -90), BackgroundColor3 = C_BG, Visible = false, ZIndex = 2000 }, 8, C_BORDER, 2)
+local cMsg = create("TextLabel", confirmGui, { Size = UDim2.new(1, -20, 0, 50), Position = UDim2.new(0, 10, 0, 10), Text = "", TextColor3 = C_TEXT, Font = ARCADE_FONT, TextSize = 14, BackgroundTransparency = 1, TextWrapped = true, ZIndex = 2001 })
+local confirmBtn = create("TextButton", confirmGui, { Size = UDim2.new(1, -30, 0, 40), Position = UDim2.new(0, 15, 0, 75), BackgroundTransparency = 1, Text = "COPIAR ID", TextColor3 = C_PURPLE, Font = ARCADE_FONT, TextSize = 16, ZIndex = 2002 })
+local cancelBtn = create("TextButton", confirmGui, { Size = UDim2.new(1, -30, 0, 40), Position = UDim2.new(0, 15, 0, 120), BackgroundTransparency = 1, Text = "CANCELAR", TextColor3 = C_TEXT, Font = ARCADE_FONT, TextSize = 16, ZIndex = 2002 })
 
-local renameGui = create("Frame", sg, { Size = UDim2.new(0, 260, 0, 150), Position = UDim2.new(0.5, -130, 0.5, -75), BackgroundColor3 = Color3.fromRGB(10, 10, 10), Visible = false, ZIndex = 3000 }, 8)
-create("UIStroke", renameGui, { Color = Color3.fromRGB(255, 255, 255), Thickness = 2 })
-create("TextLabel", renameGui, { Size = UDim2.new(1, 0, 0, 35), Text = "NOVO NOME DA SKIN:", TextColor3 = Color3.fromRGB(255, 255, 255), Font = ARCADE_FONT, TextSize = 14, BackgroundTransparency = 1, ZIndex = 3001 })
-local renameInput = create("TextBox", renameGui, { Size = UDim2.new(1, -30, 0, 35), Position = UDim2.new(0, 15, 0, 45), BackgroundColor3 = Color3.fromRGB(25, 25, 25), Text = "", TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.GothamBold, TextSize = 13, ClearTextOnFocus = false, ZIndex = 3001 }, 4)
-create("UIStroke", renameInput, { Color = Color3.fromRGB(60, 60, 60), Thickness = 1 })
-local renameConfirmBtn = create("TextButton", renameGui, { Size = UDim2.new(0, 105, 0, 35), Position = UDim2.new(0, 15, 0, 100), BackgroundColor3 = Color3.fromRGB(30, 30, 30), Text = "CONFIRMAR", TextColor3 = Color3.fromRGB(255, 255, 255), Font = ARCADE_FONT, TextSize = 12, ZIndex = 3001 }, 4)
-local renameCancelBtn = create("TextButton", renameGui, { Size = UDim2.new(0, 105, 0, 35), Position = UDim2.new(1, -120, 0, 100), BackgroundColor3 = Color3.fromRGB(30, 30, 30), Text = "CANCELAR", TextColor3 = Color3.fromRGB(255, 255, 255), Font = ARCADE_FONT, TextSize = 12, ZIndex = 3001 }, 4)
+local renameGui = create("Frame", sg, { Size = UDim2.new(0, 260, 0, 150), Position = UDim2.new(0.5, -130, 0.5, -75), BackgroundColor3 = C_DARK, Visible = false, ZIndex = 3000 }, 8, C_BORDER, 2)
+create("TextLabel", renameGui, { Size = UDim2.new(1, 0, 0, 35), Text = "NOVO NOME DA SKIN:", TextColor3 = C_TEXT, Font = ARCADE_FONT, TextSize = 14, BackgroundTransparency = 1, ZIndex = 3001 })
+local renameInput = create("TextBox", renameGui, { Size = UDim2.new(1, -30, 0, 35), Position = UDim2.new(0, 15, 0, 45), BackgroundColor3 = Color3.fromRGB(25, 25, 25), Text = "", TextColor3 = C_TEXT, Font = Enum.Font.GothamBold, TextSize = 13, ClearTextOnFocus = false, ZIndex = 3001 }, 4)
+local renameConfirmBtn = create("TextButton", renameGui, { Size = UDim2.new(0, 105, 0, 35), Position = UDim2.new(0, 15, 0, 100), BackgroundColor3 = C_PURPLE, Text = "CONFIRMAR", TextColor3 = C_TEXT, Font = ARCADE_FONT, TextSize = 12, ZIndex = 3001 }, 4)
+local renameCancelBtn = create("TextButton", renameGui, { Size = UDim2.new(0, 105, 0, 35), Position = UDim2.new(1, -120, 0, 100), BackgroundColor3 = Color3.fromRGB(30, 30, 30), Text = "CANCELAR", TextColor3 = C_TEXT, Font = ARCADE_FONT, TextSize = 12, ZIndex = 3001 }, 4)
 
-local footerDatabaseReturnBtn = create("TextButton", main, { Size = UDim2.new(1, -20, 0, 35), Position = UDim2.new(0, 10, 1, -45), BackgroundColor3 = Color3.fromRGB(20, 20, 20), Text = "VOLTAR PARA LISTA", TextColor3 = Color3.fromRGB(255, 255, 255), Font = ARCADE_FONT, TextSize = 14, Visible = false, ZIndex = 149 }, 6)
-create("UIStroke", footerDatabaseReturnBtn, { Color = Color3.fromRGB(35, 35, 35), Thickness = 1 })
-local bk = create("TextButton", detailPage, { Size = UDim2.new(1, -20, 0, 35), Position = UDim2.new(0, 10, 1, -40), BackgroundColor3 = Color3.fromRGB(20, 20, 20), Text = "VOLTAR PARA LISTA", TextColor3 = Color3.fromRGB(255, 255, 255), Font = ARCADE_FONT, TextSize = 14, ZIndex = 110 }, 6)
-create("UIStroke", bk, { Color = Color3.fromRGB(35, 35, 35), Thickness = 1 })
+local footerDatabaseReturnBtn = create("TextButton", main, { Size = UDim2.new(1, -24, 0, 35), Position = UDim2.new(0, 12, 1, -45), BackgroundColor3 = C_DARK, Text = "VOLTAR PARA LISTA", TextColor3 = C_TEXT, Font = ARCADE_FONT, TextSize = 14, Visible = false, ZIndex = 149 }, 6, C_BORDER, 1)
+local bk = create("TextButton", detailPage, { Size = UDim2.new(1, -24, 0, 35), Position = UDim2.new(0, 12, 1, -40), BackgroundColor3 = C_DARK, Text = "VOLTAR PARA LISTA", TextColor3 = C_TEXT, Font = ARCADE_FONT, TextSize = 14, ZIndex = 110 }, 6, C_BORDER, 1)
 
 local function updateVisibility()
     if not main.Visible then return end
@@ -96,14 +105,14 @@ local function updateVisibility()
     databaseReturnBtn.Visible = not isDetail and not isPlayers
     saveSkinBtn.Visible = isDetail and isPlayers
     footerDatabaseReturnBtn.Visible = not isDetail and not isPlayers
-
     searchContainer.Visible = not isDetail and isPlayers
-    listPage.Position = (not isDetail and isPlayers) and UDim2.new(0, 10, 0, 90) or UDim2.new(0, 10, 0, 52)
-    listPage.Size = UDim2.new(1, -20, 1, (not isDetail and isPlayers) and -95 or ((not isDetail and not isPlayers) and -115 or -65))
+    
+    listPage.Position = (not isDetail and isPlayers) and UDim2.new(0, 12, 0, 105) or UDim2.new(0, 12, 0, 65)
+    listPage.Size = UDim2.new(1, -24, 1, (not isDetail and isPlayers) and -105 or ((not isDetail and not isPlayers) and -125 or -70))
 end
 
 -- ============================================================
--- SISTEMA DE PREVIEW 3D (CORES PERFEITAS + FIXO NA TELA)
+-- SISTEMA DE PREVIEW 3D (CORES PERFEITAS + FIXO)
 -- ============================================================
 
 local function parseAssetId(val)
@@ -114,9 +123,7 @@ local function parseAssetId(val)
 end
 
 local ACCESSORY_TYPE_BY_NAME = {}
-for _, t in ipairs(Enum.AccessoryType:GetEnumItems()) do
-    ACCESSORY_TYPE_BY_NAME[t.Name] = t
-end
+for _, t in ipairs(Enum.AccessoryType:GetEnumItems()) do ACCESSORY_TYPE_BY_NAME[t.Name] = t end
 
 local function colorToTable(c)
     if typeof(c) ~= "Color3" then return nil end
@@ -146,35 +153,20 @@ local function serializeFullDescription(hum)
     if not ok or not desc then return nil end
 
     local data = {}
-    for _, key in ipairs({
-        "Shirt", "Pants", "GraphicTShirt", "Face", "Head", "Torso",
-        "LeftArm", "RightArm", "LeftLeg", "RightLeg",
-        "IdleAnimation", "WalkAnimation", "RunAnimation", "JumpAnimation",
-        "FallAnimation", "ClimbAnimation", "SwimAnimation", "SwimIdleAnimation", "MoodAnimation",
-    }) do
-        local ok2, v = pcall(function() return desc[key] end)
-        if ok2 and v then data[key] = v end
+    for _, key in ipairs({ "Shirt", "Pants", "GraphicTShirt", "Face", "Head", "Torso", "LeftArm", "RightArm", "LeftLeg", "RightLeg", "IdleAnimation", "WalkAnimation", "RunAnimation", "JumpAnimation", "FallAnimation", "ClimbAnimation", "SwimAnimation", "SwimIdleAnimation", "MoodAnimation" }) do
+        local ok2, v = pcall(function() return desc[key] end) if ok2 and v then data[key] = v end
     end
-
     for _, key in ipairs({ "HeightScale", "WidthScale", "DepthScale", "BodyTypeScale", "HeadScale", "ProportionScale" }) do
-        local ok2, v = pcall(function() return desc[key] end)
-        if ok2 and v then data[key] = v end
+        local ok2, v = pcall(function() return desc[key] end) if ok2 and v then data[key] = v end
     end
-
     for _, key in ipairs({ "HeadColor", "TorsoColor", "LeftArmColor", "RightArmColor", "LeftLegColor", "RightLegColor" }) do
-        local ok2, v = pcall(function() return desc[key] end)
-        if ok2 and v then data[key] = colorToTable(v) end
+        local ok2, v = pcall(function() return desc[key] end) if ok2 and v then data[key] = colorToTable(v) end
     end
-
     local okAcc, accessories = pcall(function() return desc:GetAccessories(true) end)
     if okAcc and type(accessories) == "table" then
         data.Accessories = {}
         for _, a in ipairs(accessories) do
-            local entry = {
-                AssetId = a.AssetId,
-                AccessoryType = a.AccessoryType and a.AccessoryType.Name or "Hat",
-                IsLayered = a.IsLayered == true,
-            }
+            local entry = { AssetId = a.AssetId, AccessoryType = a.AccessoryType and a.AccessoryType.Name or "Hat", IsLayered = a.IsLayered == true }
             if a.Order ~= nil then entry.Order = a.Order end
             if a.Puffiness ~= nil then entry.Puffiness = a.Puffiness end
             if a.Position then entry.Position = vec3ToTable(a.Position) end
@@ -183,38 +175,16 @@ local function serializeFullDescription(hum)
             table.insert(data.Accessories, entry)
         end
     end
-
     local okMk, makeups = pcall(function() return desc:GetMakeups() end)
     if okMk and type(makeups) == "table" then
         data.MakeupItems = {}
-        for _, m in ipairs(makeups) do
-            table.insert(data.MakeupItems, {
-                AssetId = m.AssetId,
-                MakeupType = m.MakeupType and m.MakeupType.Name or "Lip",
-                Order = m.Order or 1,
-            })
-        end
+        for _, m in ipairs(makeups) do table.insert(data.MakeupItems, { AssetId = m.AssetId, MakeupType = m.MakeupType and m.MakeupType.Name or "Lip", Order = m.Order or 1 }) end
     end
-
-    local okEm, emotes = pcall(function() return desc:GetEmotes() end)
-    if okEm and type(emotes) == "table" then data.Emotes = emotes end
-    local okEq, equipped = pcall(function() return desc:GetEquippedEmotes() end)
-    if okEq and type(equipped) == "table" then data.EquippedEmotes = equipped end
-
-    local okSh, shape = pcall(function()
-        for _, child in ipairs(desc:GetChildren()) do
-            if child:IsA("BodyPartDescription") and child.BodyPart == Enum.BodyPart.Head then
-                return child.HeadShape
-            end
-        end
-        return nil
-    end)
+    local okEm, emotes = pcall(function() return desc:GetEmotes() end) if okEm and type(emotes) == "table" then data.Emotes = emotes end
+    local okEq, equipped = pcall(function() return desc:GetEquippedEmotes() end) if okEq and type(equipped) == "table" then data.EquippedEmotes = equipped end
+    local okSh, shape = pcall(function() for _, child in ipairs(desc:GetChildren()) do if child:IsA("BodyPartDescription") and child.BodyPart == Enum.BodyPart.Head then return child.HeadShape end end return nil end)
     if okSh and shape and shape ~= "" then data.HeadShape = shape end
-
-    if hum.RigType then
-        data.RigType = (hum.RigType == Enum.HumanoidRigType.R6) and "R6" or "R15"
-    end
-
+    if hum.RigType then data.RigType = (hum.RigType == Enum.HumanoidRigType.R6) and "R6" or "R15" end
     pcall(function() desc:Destroy() end)
     return data
 end
@@ -222,52 +192,24 @@ end
 local function buildDescriptionFromFull(full)
     if type(full) ~= "table" then return nil end
     local desc = Instance.new("HumanoidDescription")
-
-    local function setNum(prop, value)
-        local id = parseAssetId(value)
-        if id then pcall(function() desc[prop] = id end) end
-    end
-
-    for _, key in ipairs({
-        "Shirt", "Pants", "GraphicTShirt", "Face", "Head", "Torso",
-        "LeftArm", "RightArm", "LeftLeg", "RightLeg",
-        "IdleAnimation", "WalkAnimation", "RunAnimation", "JumpAnimation",
-        "FallAnimation", "ClimbAnimation", "SwimAnimation", "SwimIdleAnimation", "MoodAnimation",
-    }) do
-        setNum(key, full[key])
-    end
-
-    for _, key in ipairs({ "HeightScale", "WidthScale", "DepthScale", "BodyTypeScale", "HeadScale", "ProportionScale" }) do
-        local v = tonumber(full[key])
-        if v then pcall(function() desc[key] = v end) end
-    end
-
+    local function setNum(prop, value) local id = parseAssetId(value) if id then pcall(function() desc[prop] = id end) end end
+    for _, key in ipairs({ "Shirt", "Pants", "GraphicTShirt", "Face", "Head", "Torso", "LeftArm", "RightArm", "LeftLeg", "RightLeg", "IdleAnimation", "WalkAnimation", "RunAnimation", "JumpAnimation", "FallAnimation", "ClimbAnimation", "SwimAnimation", "SwimIdleAnimation", "MoodAnimation" }) do setNum(key, full[key]) end
+    for _, key in ipairs({ "HeightScale", "WidthScale", "DepthScale", "BodyTypeScale", "HeadScale", "ProportionScale" }) do local v = tonumber(full[key]) if v then pcall(function() desc[key] = v end) end end
+    
     local hasAnyColor = false
     for _, key in ipairs({ "HeadColor", "TorsoColor", "LeftArmColor", "RightArmColor", "LeftLegColor", "RightLegColor" }) do
-        local c = tableToColor(full[key])
-        if c then 
-            pcall(function() desc[key] = c end) 
-            hasAnyColor = true
-        end
+        local c = tableToColor(full[key]) if c then pcall(function() desc[key] = c end) hasAnyColor = true end
     end
-    
     if not hasAnyColor then
         local neutral = Color3.fromRGB(205, 170, 125)
-        pcall(function()
-            desc.HeadColor = neutral; desc.TorsoColor = neutral; desc.LeftArmColor = neutral
-            desc.RightArmColor = neutral; desc.LeftLegColor = neutral; desc.RightLegColor = neutral
-        end)
+        pcall(function() desc.HeadColor = neutral; desc.TorsoColor = neutral; desc.LeftArmColor = neutral; desc.RightArmColor = neutral; desc.LeftLegColor = neutral; desc.RightLegColor = neutral end)
     end
 
     if type(full.Accessories) == "table" then
         local accessories = {}
         for _, a in ipairs(full.Accessories) do
             if type(a) == "table" and a.AssetId then
-                local entry = {
-                    AssetId = parseAssetId(a.AssetId),
-                    AccessoryType = ACCESSORY_TYPE_BY_NAME[a.AccessoryType or "Hat"] or Enum.AccessoryType.Hat,
-                    IsLayered = a.IsLayered == true,
-                }
+                local entry = { AssetId = parseAssetId(a.AssetId), AccessoryType = ACCESSORY_TYPE_BY_NAME[a.AccessoryType or "Hat"] or Enum.AccessoryType.Hat, IsLayered = a.IsLayered == true }
                 if a.Order ~= nil then entry.Order = a.Order end
                 if a.Puffiness ~= nil then entry.Puffiness = a.Puffiness end
                 if a.Position then entry.Position = tableToVec3(a.Position) end
@@ -278,34 +220,26 @@ local function buildDescriptionFromFull(full)
         end
         if #accessories > 0 then pcall(function() desc:SetAccessories(accessories, true) end) end
     end
-
     if type(full.MakeupItems) == "table" then
         for _, m in ipairs(full.MakeupItems) do
             if type(m) == "table" and m.AssetId then
                 pcall(function()
                     local makeup = Instance.new("MakeupDescription")
-                    makeup.AssetId = parseAssetId(m.AssetId)
-                    makeup.Order = m.Order or 1
+                    makeup.AssetId = parseAssetId(m.AssetId) makeup.Order = m.Order or 1
                     makeup.MakeupType = Enum.MakeupType[m.MakeupType or "Lip"] or Enum.MakeupType.Lip
                     makeup.Parent = desc
                 end)
             end
         end
     end
-
     if type(full.Emotes) == "table" then pcall(function() desc:SetEmotes(full.Emotes) end) end
     if type(full.EquippedEmotes) == "table" then pcall(function() desc:SetEquippedEmotes(full.EquippedEmotes) end) end
-
     if full.HeadShape and full.HeadShape ~= "" then
         pcall(function()
             local hp = Instance.new("BodyPartDescription")
-            hp.BodyPart = Enum.BodyPart.Head
-            hp.AssetId = desc.Head
-            hp.HeadShape = full.HeadShape
-            hp.Parent = desc
+            hp.BodyPart = Enum.BodyPart.Head hp.AssetId = desc.Head hp.HeadShape = full.HeadShape hp.Parent = desc
         end)
     end
-
     return desc
 end
 
@@ -314,43 +248,26 @@ local function fetchFullDescriptionByUserId(userId)
     if not userId or userId <= 0 then return nil end
     if userFullDescCache[userId] ~= nil then return userFullDescCache[userId] or nil end
     local ok, desc = pcall(function()
-        if type(Players.GetHumanoidDescriptionFromUserIdAsync) == "function" then
-            return Players:GetHumanoidDescriptionFromUserIdAsync(userId)
-        end
+        if type(Players.GetHumanoidDescriptionFromUserIdAsync) == "function" then return Players:GetHumanoidDescriptionFromUserIdAsync(userId) end
         return Players:GetHumanoidDescriptionFromUserId(userId)
     end)
-    if not ok or not desc then
-        userFullDescCache[userId] = false
-        return nil
-    end
+    if not ok or not desc then userFullDescCache[userId] = false return nil end
 
     local data = {}
-    for _, key in ipairs({
-        "Shirt", "Pants", "GraphicTShirt", "Face", "Head", "Torso",
-        "LeftArm", "RightArm", "LeftLeg", "RightLeg",
-        "IdleAnimation", "WalkAnimation", "RunAnimation", "JumpAnimation",
-        "FallAnimation", "ClimbAnimation", "SwimAnimation", "SwimIdleAnimation", "MoodAnimation",
-    }) do
-        local ok2, v = pcall(function() return desc[key] end)
-        if ok2 and v then data[key] = v end
+    for _, key in ipairs({ "Shirt", "Pants", "GraphicTShirt", "Face", "Head", "Torso", "LeftArm", "RightArm", "LeftLeg", "RightLeg", "IdleAnimation", "WalkAnimation", "RunAnimation", "JumpAnimation", "FallAnimation", "ClimbAnimation", "SwimAnimation", "SwimIdleAnimation", "MoodAnimation" }) do
+        local ok2, v = pcall(function() return desc[key] end) if ok2 and v then data[key] = v end
     end
     for _, key in ipairs({ "HeightScale", "WidthScale", "DepthScale", "BodyTypeScale", "HeadScale", "ProportionScale" }) do
-        local ok2, v = pcall(function() return desc[key] end)
-        if ok2 and v then data[key] = v end
+        local ok2, v = pcall(function() return desc[key] end) if ok2 and v then data[key] = v end
     end
     for _, key in ipairs({ "HeadColor", "TorsoColor", "LeftArmColor", "RightArmColor", "LeftLegColor", "RightLegColor" }) do
-        local ok2, v = pcall(function() return desc[key] end)
-        if ok2 and v then data[key] = colorToTable(v) end
+        local ok2, v = pcall(function() return desc[key] end) if ok2 and v then data[key] = colorToTable(v) end
     end
     local okAcc, accessories = pcall(function() return desc:GetAccessories(true) end)
     if okAcc and type(accessories) == "table" then
         data.Accessories = {}
         for _, a in ipairs(accessories) do
-            local entry = {
-                AssetId = a.AssetId,
-                AccessoryType = a.AccessoryType and a.AccessoryType.Name or "Hat",
-                IsLayered = a.IsLayered == true,
-            }
+            local entry = { AssetId = a.AssetId, AccessoryType = a.AccessoryType and a.AccessoryType.Name or "Hat", IsLayered = a.IsLayered == true }
             if a.Order ~= nil then entry.Order = a.Order end
             if a.Puffiness ~= nil then entry.Puffiness = a.Puffiness end
             if a.Position then entry.Position = vec3ToTable(a.Position) end
@@ -362,16 +279,9 @@ local function fetchFullDescriptionByUserId(userId)
     local okMk, makeups = pcall(function() return desc:GetMakeups() end)
     if okMk and type(makeups) == "table" then
         data.MakeupItems = {}
-        for _, m in ipairs(makeups) do
-            table.insert(data.MakeupItems, {
-                AssetId = m.AssetId,
-                MakeupType = m.MakeupType and m.MakeupType.Name or "Lip",
-                Order = m.Order or 1,
-            })
-        end
+        for _, m in ipairs(makeups) do table.insert(data.MakeupItems, { AssetId = m.AssetId, MakeupType = m.MakeupType and m.MakeupType.Name or "Lip", Order = m.Order or 1 }) end
     end
-    local okEm, emotes = pcall(function() return desc:GetEmotes() end)
-    if okEm and type(emotes) == "table" then data.Emotes = emotes end
+    local okEm, emotes = pcall(function() return desc:GetEmotes() end) if okEm and type(emotes) == "table" then data.Emotes = emotes end
     pcall(function() desc:Destroy() end)
     userFullDescCache[userId] = data
     return data
@@ -379,164 +289,92 @@ end
 
 local function buildDescriptionFromRaw(raw)
     if type(raw) ~= "table" then return nil end
-    if type(raw.Full) == "table" then
-        local d = buildDescriptionFromFull(raw.Full)
-        if d then return d end
-    end
+    if type(raw.Full) == "table" then local d = buildDescriptionFromFull(raw.Full) if d then return d end end
     local desc = Instance.new("HumanoidDescription")
-    local function setNum(prop, value)
-        local id = parseAssetId(value)
-        if id then pcall(function() desc[prop] = id end) end
-    end
+    local function setNum(prop, value) local id = parseAssetId(value) if id then pcall(function() desc[prop] = id end) end end
     setNum("Shirt", raw.Shirt) setNum("Pants", raw.Pants) setNum("Face", raw.Face) setNum("GraphicTShirt", raw.GraphicTShirt)
     if type(raw.BodyParts) == "table" then
-        setNum("Head", raw.BodyParts.Head) setNum("Torso", raw.BodyParts.Torso)
-        setNum("LeftArm", raw.BodyParts.LeftArm) setNum("RightArm", raw.BodyParts.RightArm)
-        setNum("LeftLeg", raw.BodyParts.LeftLeg) setNum("RightLeg", raw.BodyParts.RightLeg)
+        setNum("Head", raw.BodyParts.Head) setNum("Torso", raw.BodyParts.Torso) setNum("LeftArm", raw.BodyParts.LeftArm) setNum("RightArm", raw.BodyParts.RightArm) setNum("LeftLeg", raw.BodyParts.LeftLeg) setNum("RightLeg", raw.BodyParts.RightLeg)
     end
     if type(raw.Animations) == "table" then
-        setNum("IdleAnimation", raw.Animations.Idle) setNum("WalkAnimation", raw.Animations.Walk)
-        setNum("RunAnimation", raw.Animations.Run) setNum("JumpAnimation", raw.Animations.Jump)
-        setNum("FallAnimation", raw.Animations.Fall) setNum("ClimbAnimation", raw.Animations.Climb)
-        setNum("SwimAnimation", raw.Animations.Swim) setNum("SwimIdleAnimation", raw.Animations.SwimIdle)
-        setNum("MoodAnimation", raw.Animations.Mood)
+        setNum("IdleAnimation", raw.Animations.Idle) setNum("WalkAnimation", raw.Animations.Walk) setNum("RunAnimation", raw.Animations.Run) setNum("JumpAnimation", raw.Animations.Jump) setNum("FallAnimation", raw.Animations.Fall) setNum("ClimbAnimation", raw.Animations.Climb) setNum("SwimAnimation", raw.Animations.Swim) setNum("SwimIdleAnimation", raw.Animations.SwimIdle) setNum("MoodAnimation", raw.Animations.Mood)
     end
     if type(raw.Accessories) == "table" then
         local accessories = {}
-        for _, accId in ipairs(raw.Accessories) do
-            local parsed = parseAssetId(accId)
-            if parsed then
-                table.insert(accessories, { AssetId = parsed, AccessoryType = Enum.AccessoryType.Hat, IsLayered = false })
-            end
-        end
+        for _, accId in ipairs(raw.Accessories) do local parsed = parseAssetId(accId) if parsed then table.insert(accessories, { AssetId = parsed, AccessoryType = Enum.AccessoryType.Hat, IsLayered = false }) end end
         if #accessories > 0 then pcall(function() desc:SetAccessories(accessories, true) end) end
     end
-    
     pcall(function()
         local neutral = Color3.fromRGB(205, 170, 125)
-        desc.HeadColor = neutral; desc.TorsoColor = neutral; desc.LeftArmColor = neutral
-        desc.RightArmColor = neutral; desc.LeftLegColor = neutral; desc.RightLegColor = neutral
+        desc.HeadColor = neutral desc.TorsoColor = neutral desc.LeftArmColor = neutral desc.RightArmColor = neutral desc.LeftLegColor = neutral desc.RightLegColor = neutral
     end)
-    
     return desc
 end
 
-local function detectRigType(player)
-    local hum = player and player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-    return hum and hum.RigType or Enum.HumanoidRigType.R15
-end
-
+local function detectRigType(player) local hum = player and player.Character and player.Character:FindFirstChildOfClass("Humanoid") return hum and hum.RigType or Enum.HumanoidRigType.R15 end
 local function detectRigTypeFromRaw(raw)
     if type(raw) ~= "table" then return Enum.HumanoidRigType.R15 end
-    if type(raw.Full) == "table" and raw.Full.RigType then
-        return (raw.Full.RigType == "R6") and Enum.HumanoidRigType.R6 or Enum.HumanoidRigType.R15
-    end
-    if type(raw.BodyParts) == "table" then
-        local bp = raw.BodyParts
-        if bp.Torso and tonumber(bp.Torso) and tonumber(bp.Torso) ~= 0 then
-            return Enum.HumanoidRigType.R6
-        end
-    end
+    if type(raw.Full) == "table" and raw.Full.RigType then return (raw.Full.RigType == "R6") and Enum.HumanoidRigType.R6 or Enum.HumanoidRigType.R15 end
+    if type(raw.BodyParts) == "table" then local bp = raw.BodyParts if bp.Torso and tonumber(bp.Torso) and tonumber(bp.Torso) ~= 0 then return Enum.HumanoidRigType.R6 end end
     return Enum.HumanoidRigType.R15
 end
 
 local PREVIEW_CACHE_LIMIT = 16
 local previewCache, previewCacheOrder = {}, {}
-
-local function clearPreviewCache()
-    for _, model in pairs(previewCache) do pcall(function() model:Destroy() end) end
-    table.clear(previewCache)
-    table.clear(previewCacheOrder)
-end
-
+local function clearPreviewCache() for _, model in pairs(previewCache) do pcall(function() model:Destroy() end) end table.clear(previewCache) table.clear(previewCacheOrder) end
 local function touchPreviewCache(key)
-    for i = #previewCacheOrder, 1, -1 do
-        if previewCacheOrder[i] == key then table.remove(previewCacheOrder, i) end
-    end
+    for i = #previewCacheOrder, 1, -1 do if previewCacheOrder[i] == key then table.remove(previewCacheOrder, i) end end
     table.insert(previewCacheOrder, key)
-    while #previewCacheOrder > PREVIEW_CACHE_LIMIT do
-        local oldKey = table.remove(previewCacheOrder, 1)
-        local oldModel = previewCache[oldKey]
-        previewCache[oldKey] = nil
-        pcall(function() if oldModel then oldModel:Destroy() end end)
-    end
+    while #previewCacheOrder > PREVIEW_CACHE_LIMIT do local oldKey = table.remove(previewCacheOrder, 1) local oldModel = previewCache[oldKey] previewCache[oldKey] = nil pcall(function() if oldModel then oldModel:Destroy() end end) end
 end
 
 local function getPreviewKey(raw, rigType)
-    local ok, encoded = pcall(function()
-        return HttpService:JSONEncode({ Raw = raw, Rig = tostring(rigType) })
-    end)
+    local ok, encoded = pcall(function() return HttpService:JSONEncode({ Raw = raw, Rig = tostring(rigType) }) end)
     return ok and encoded or tostring(raw)
 end
 
 local function buildPreviewTemplate(raw, rigType, cacheKey, userId)
-    local desc
-    local rigTypeFromFull = nil
-
-    if type(raw) == "table" and type(raw.Full) == "table" then
-        desc = buildDescriptionFromFull(raw.Full)
-        if raw.Full.RigType then rigTypeFromFull = raw.Full.RigType end
-    end
-
-    if not desc and userId and tonumber(userId) and tonumber(userId) > 0 then
-        local fetched = fetchFullDescriptionByUserId(tonumber(userId))
-        if fetched then desc = buildDescriptionFromFull(fetched) end
-    end
-
+    local desc, rigTypeFromFull
+    if type(raw) == "table" and type(raw.Full) == "table" then desc = buildDescriptionFromFull(raw.Full) if raw.Full.RigType then rigTypeFromFull = raw.Full.RigType end end
+    if not desc and userId and tonumber(userId) and tonumber(userId) > 0 then local fetched = fetchFullDescriptionByUserId(tonumber(userId)) if fetched then desc = buildDescriptionFromFull(fetched) end end
     if not desc then desc = buildDescriptionFromRaw(raw) end
     if not desc then return nil end
-
-    if rigTypeFromFull == "R6" then rigType = Enum.HumanoidRigType.R6
-    elseif rigTypeFromFull == "R15" then rigType = Enum.HumanoidRigType.R15 end
+    if rigTypeFromFull == "R6" then rigType = Enum.HumanoidRigType.R6 elseif rigTypeFromFull == "R15" then rigType = Enum.HumanoidRigType.R15 end
 
     local ok, model = pcall(function()
-        if type(Players.CreateHumanoidModelFromDescriptionAsync) == "function" then
-            return Players:CreateHumanoidModelFromDescriptionAsync(desc, rigType)
-        end
+        if type(Players.CreateHumanoidModelFromDescriptionAsync) == "function" then return Players:CreateHumanoidModelFromDescriptionAsync(desc, rigType) end
         return Players:CreateHumanoidModelFromDescription(desc, rigType)
     end)
     pcall(function() desc:Destroy() end)
-
-    if not ok or not model or not model:IsA("Model") then
-        if model and typeof(model) == "Instance" then pcall(function() model:Destroy() end) end
-        return nil
-    end
-
+    if not ok or not model or not model:IsA("Model") then if model and typeof(model) == "Instance" then pcall(function() model:Destroy() end) end return nil end
     model.Parent = nil
     model:PivotTo(CFrame.new(0, 0, 0))
-
-    if cacheKey then
-        previewCache[cacheKey] = model
-        touchPreviewCache(cacheKey)
-    end
+    if cacheKey then previewCache[cacheKey] = model touchPreviewCache(cacheKey) end
     return model
 end
 
--- UI DO PREVIEW 3D (FIXO NA TELA)
+-- UI DO PREVIEW 3D FIXO (Estilo Viewing Mode)
 local hoverPreview = create("Frame", sg, {
     Name = "AvatarHoverPreview",
-    Size = UDim2.new(0, 200, 0, 260),
-    -- ⭐ Posição fixa baseada no script original que você printou
-    Position = UDim2.new(0.5, 105, 0.5, -110), 
-    BackgroundColor3 = Color3.fromRGB(8, 8, 8),
+    Size = UDim2.new(0, 220, 0, 280),
+    Position = UDim2.new(0.5, 120, 0.5, -120), 
+    BackgroundColor3 = C_BG,
     Visible = false,
     ZIndex = 1500,
-}, 8)
-create("UIStroke", hoverPreview, { Color = Color3.fromRGB(255, 255, 255), Thickness = 2 })
+}, 12, C_BORDER, 4)
 
 local hoverTitle = create("TextLabel", hoverPreview, {
-    Size = UDim2.new(1, -16, 0, 22), Position = UDim2.new(0, 8, 0, 6),
-    BackgroundTransparency = 1, Text = "PREVIEW 3D",
-    TextColor3 = Color3.fromRGB(255, 255, 255), Font = ARCADE_FONT, TextSize = 11,
-    TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 1502,
+    Size = UDim2.new(1, -16, 0, 26), Position = UDim2.new(0, 8, 0, 8),
+    BackgroundTransparency = 1, Text = "Viewing Mode",
+    TextColor3 = C_TEXT, Font = Enum.Font.Arcade, TextSize = 22,
+    TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 1502,
 })
 
 local hoverViewportHolder = create("Frame", hoverPreview, {
-    Size = UDim2.new(1, -16, 1, -80), Position = UDim2.new(0, 8, 0, 30),
-    BackgroundColor3 = Color3.fromRGB(4, 4, 4), BorderSizePixel = 0, ClipsDescendants = true,
+    Size = UDim2.new(1, -24, 1, -80), Position = UDim2.new(0, 12, 0, 38),
+    BackgroundColor3 = C_BG, BorderSizePixel = 0, ClipsDescendants = true,
     ZIndex = 1501,
-}, 6)
-create("UIStroke", hoverViewportHolder, { Color = Color3.fromRGB(45, 45, 45), Thickness = 1 })
+}, 6, C_BORDER, 3)
 
 local hoverStatus = create("TextLabel", hoverViewportHolder, {
     Size = UDim2.new(1, -12, 1, -12), Position = UDim2.new(0, 6, 0, 6),
@@ -549,18 +387,16 @@ local hoverStatus = create("TextLabel", hoverViewportHolder, {
 local hoverName = create("TextLabel", hoverPreview, {
     Size = UDim2.new(1, -16, 0, 22), Position = UDim2.new(0, 8, 1, -28),
     BackgroundTransparency = 1, Text = "",
-    TextColor3 = Color3.fromRGB(220, 220, 220), Font = Enum.Font.GothamBold, TextSize = 11,
+    TextColor3 = C_TEXT, Font = Enum.Font.GothamBold, TextSize = 12,
     TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd,
     ZIndex = 1502,
 })
 
 local previewToken = 0
 local previewModel, previewViewport, previewConnection = nil, nil, nil
-local previewButton = nil
 
 local function stopHoverPreview()
     previewToken += 1
-    previewButton = nil
     if previewConnection then pcall(function() previewConnection:Disconnect() end) previewConnection = nil end
     if previewModel then pcall(function() previewModel:Destroy() end) previewModel = nil end
     previewViewport = nil
@@ -568,12 +404,8 @@ local function stopHoverPreview()
 end
 
 local function createViewport(parent)
-    local old = parent:FindFirstChild("Preview")
-    if old then old:Destroy() end
-    local vp = create("ViewportFrame", parent, {
-        Name = "Preview", Size = UDim2.new(1, 0, 1, 0),
-        BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = parent.ZIndex + 1,
-    })
+    local old = parent:FindFirstChild("Preview") if old then old:Destroy() end
+    local vp = create("ViewportFrame", parent, { Name = "Preview", Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = parent.ZIndex + 1 })
     local wm = create("WorldModel", vp, {})
     local cam = create("Camera", vp, { FieldOfView = 30 })
     vp.CurrentCamera = cam
@@ -593,7 +425,7 @@ local function positionCamera(cam, model)
     cam.CFrame = CFrame.lookAt(target + look.Unit * distance, target)
 end
 
-local function showHoverPreview(raw, displayName, rigType, anchorButton, userId)
+local function showHoverPreview(raw, displayName, rigType, userId)
     if not raw then return end
     stopHoverPreview()
     local token = previewToken
@@ -602,42 +434,24 @@ local function showHoverPreview(raw, displayName, rigType, anchorButton, userId)
     hoverStatus.Text = "Carregando..."
     hoverStatus.Visible = true
     hoverPreview.Visible = true
-    previewButton = anchorButton
 
     task.spawn(function()
         local vp, wm, cam = createViewport(hoverViewportHolder)
-        if not vp then
-            hoverStatus.Text = "Erro: viewport"
-            return
-        end
+        if not vp then hoverStatus.Text = "Erro: viewport" return end
 
         local keySuffix = tostring(userId or "")
         local key = getPreviewKey(raw, rigType) .. "|u:" .. keySuffix
-
         local template = previewCache[key]
-        if template and template.Parent ~= nil then
-            previewCache[key] = nil
-            template = nil
-        elseif template then
-            touchPreviewCache(key)
-        end
+        
+        if template and template.Parent ~= nil then previewCache[key] = nil template = nil 
+        elseif template then touchPreviewCache(key) end
 
-        if not template then
-            template = buildPreviewTemplate(raw, rigType, key, userId)
-        end
-
-        if not template then
-            hoverStatus.Text = "Falha ao gerar preview.\n(IDs inválidos ou asset removido.)"
-            return
-        end
-
+        if not template then template = buildPreviewTemplate(raw, rigType, key, userId) end
+        if not template then hoverStatus.Text = "Falha ao gerar preview." return end
         if token ~= previewToken or not hoverPreview.Visible then return end
 
         local okClone, model = pcall(function() return template:Clone() end)
-        if not okClone or not model then
-            hoverStatus.Text = "Falha ao clonar."
-            return
-        end
+        if not okClone or not model then hoverStatus.Text = "Falha ao clonar." return end
 
         model.Parent = wm
         model:PivotTo(CFrame.new(0, 0, 0))
@@ -650,10 +464,7 @@ local function showHoverPreview(raw, displayName, rigType, anchorButton, userId)
 
         local angle = 0
         previewConnection = RUN_SERVICE.RenderStepped:Connect(function(dt)
-            if token ~= previewToken or not hoverPreview.Visible or not model.Parent then
-                stopHoverPreview()
-                return
-            end
+            if token ~= previewToken or not hoverPreview.Visible or not model.Parent then stopHoverPreview() return end
             angle += dt * math.rad(70)
             pcall(function() model:PivotTo(CFrame.Angles(0, angle, 0)) end)
         end)
@@ -680,54 +491,32 @@ local function clonarSkinBrookhaven(skinData)
                 itensRestantes = itensRestantes + 1 pcall(function() wearRemote:InvokeServer(tonumber(acessorio.AssetId)) end) task.wait(0.9)
             end
         end
-        if appliedDescription.Shirt and tonumber(appliedDescription.Shirt) ~= 0 then
-            itensRestantes = itensRestantes + 1 pcall(function() wearRemote:InvokeServer(tonumber(appliedDescription.Shirt)) end) task.wait(0.9)
-        end
-        if appliedDescription.Pants and tonumber(appliedDescription.Pants) ~= 0 then
-            itensRestantes = itensRestantes + 1 pcall(function() wearRemote:InvokeServer(tonumber(appliedDescription.Pants)) end) task.wait(0.9)
-        end
-        if appliedDescription.Head and tonumber(appliedDescription.Head) ~= 0 and tonumber(appliedDescription.Head) ~= 4843936835 then
-            itensRestantes = itensRestantes + 1 pcall(function() wearRemote:InvokeServer(tonumber(appliedDescription.Head)) end) task.wait(0.9)
-        end
+        if appliedDescription.Shirt and tonumber(appliedDescription.Shirt) ~= 0 then itensRestantes = itensRestantes + 1 pcall(function() wearRemote:InvokeServer(tonumber(appliedDescription.Shirt)) end) task.wait(0.9) end
+        if appliedDescription.Pants and tonumber(appliedDescription.Pants) ~= 0 then itensRestantes = itensRestantes + 1 pcall(function() wearRemote:InvokeServer(tonumber(appliedDescription.Pants)) end) task.wait(0.9) end
+        if appliedDescription.Head and tonumber(appliedDescription.Head) ~= 0 and tonumber(appliedDescription.Head) ~= 4843936835 then itensRestantes = itensRestantes + 1 pcall(function() wearRemote:InvokeServer(tonumber(appliedDescription.Head)) end) task.wait(0.9) end
         task.wait(0.5)
     until itensRestantes == 0 or tentacles >= maxTentativas
 
-    if skinData.BodyParts then
-        for partName, partId in pairs(skinData.BodyParts) do
-            if partId and tonumber(partId) ~= 0 and tonumber(partId) ~= 4843936835 then pcall(function() wearRemote:InvokeServer(tonumber(partId)) end) task.wait(0.9) end
-        end
-    end
-
+    if skinData.BodyParts then for partName, partId in pairs(skinData.BodyParts) do if partId and tonumber(partId) ~= 0 and tonumber(partId) ~= 4843936835 then pcall(function() wearRemote:InvokeServer(tonumber(partId)) end) task.wait(0.9) end end end
     if skinData.Shirt and tonumber(skinData.Shirt) ~= 0 then pcall(function() wearRemote:InvokeServer(tonumber(skinData.Shirt)) end) task.wait(0.9) end
     if skinData.Pants and tonumber(skinData.Pants) ~= 0 then pcall(function() wearRemote:InvokeServer(tonumber(skinData.Pants)) end) task.wait(0.9) end
     if skinData.Face and tonumber(skinData.Face) ~= 0 then pcall(function() wearRemote:InvokeServer(tonumber(skinData.Face)) end) task.wait(0.9) end
-
-    if skinData.Accessories then
-        for _, accId in ipairs(skinData.Accessories) do
-            if tonumber(accId) ~= 0 then pcall(function() wearRemote:InvokeServer(tonumber(accId)) end) task.wait(0.9) end
-        end
-    end
-
-    if skinData.Animations then
-        for animName, animId in pairs(skinData.Animations) do
-            if animId and tonumber(animId) ~= 0 then pcall(function() wearRemote:InvokeServer(tonumber(animId)) end) task.wait(0.9) end
-        end
-    end
+    if skinData.Accessories then for _, accId in ipairs(skinData.Accessories) do if tonumber(accId) ~= 0 then pcall(function() wearRemote:InvokeServer(tonumber(accId)) end) task.wait(0.9) end end end
+    if skinData.Animations then for animName, animId in pairs(skinData.Animations) do if animId and tonumber(animId) ~= 0 then pcall(function() wearRemote:InvokeServer(tonumber(animId)) end) task.wait(0.9) end end end
 end
+
+-- ============================================================
+-- LISTAGEM E UI
+-- ============================================================
 
 local function createCard(id, defName, isAnimation)
     if not id or tostring(id) == "0" or id == "" then return end
-    local card = create("TextButton", gridScroll, { BackgroundColor3 = isAnimation and Color3.fromRGB(20, 15, 30) or Color3.fromRGB(15, 15, 15), Text = "", ZIndex = 104 }, 6)
-    create("UIStroke", card, { Color = isAnimation and Color3.fromRGB(230, 110, 20) or Color3.fromRGB(40, 40, 40), Thickness = 1 })
+    local card = create("TextButton", gridScroll, { BackgroundColor3 = isAnimation and Color3.fromRGB(30, 10, 40) or C_DARK, Text = "", ZIndex = 104 }, 6, isAnimation and C_PURPLE or Color3.fromRGB(60, 60, 60), 1)
     local imgLabel = create("ImageLabel", card, { Size = UDim2.new(1, -10, 0, 65), Position = UDim2.new(0, 5, 0, 5), BackgroundTransparency = 1, Image = "rbxthumb://type=Asset&id=" .. id .. "&w=150&h=150", ZIndex = 105 })
-    local label = create("TextLabel", card, { Size = UDim2.new(1, -6, 0, 35), Position = UDim2.new(0, 3, 1, -45), Text = "...", TextColor3 = Color3.fromRGB(200, 200, 200), TextSize = 8, Font = Enum.Font.Gotham, TextWrapped = true, BackgroundTransparency = 1, ZIndex = 105 })
+    local label = create("TextLabel", card, { Size = UDim2.new(1, -6, 0, 35), Position = UDim2.new(0, 3, 1, -45), Text = "...", TextColor3 = C_TEXT, TextSize = 8, Font = Enum.Font.Gotham, TextWrapped = true, BackgroundTransparency = 1, ZIndex = 105 })
     task.spawn(function()
         local s, info = pcall(Marketplace.GetProductInfo, Marketplace, id)
-        if s and info then
-            label.Text = info.Name
-            if isAnimation or info.AssetTypeId == 24 then
-                imgLabel.Image = "rbxthumb://type=Asset&id=" .. id .. "&w=150&h=150"
-            end
+        if s and info then label.Text = info.Name if isAnimation or info.AssetTypeId == 24 then imgLabel.Image = "rbxthumb://type=Asset&id=" .. id .. "&w=150&h=150" end
         else label.Text = defName end
     end)
     card.MouseButton1Click:Connect(function() currentId = id cMsg.Text = "COPIAR ID DO: " .. defName:upper() confirmGui.Visible = true end)
@@ -743,13 +532,10 @@ local function displayAvatarData(name, data)
     createCard(data.Shirt, "Camisa") createCard(data.Pants, "Calça") createCard(data.Face, "Rosto")
     for part, id in pairs(data.BodyParts or {}) do createCard(id, part) end
     for _, accId in ipairs(data.Accessories or {}) do createCard(accId, "Acessório") end
-    if data.Animations then
-        for animName, animId in pairs(data.Animations) do createCard(animId, "Anim: " .. animName, true) end
-    end
+    if data.Animations then for animName, animId in pairs(data.Animations) do createCard(animId, "Anim: " .. animName, true) end end
 end
 
 local function clearList() for _, v in pairs(listPage:GetChildren()) do if v:IsA("Frame") or v:IsA("TextButton") then v:Destroy() end end end
-
 local updateSavedList
 
 local function updatePlayerList()
@@ -762,12 +548,10 @@ local function updatePlayerList()
         local dispName = p.DisplayName:lower()
         local username = p.Name:lower()
         if filterText == "" or dispName:find(filterText, 1, true) or username:find(filterText, 1, true) then
-            local cardBtn = create("TextButton", listPage, { Size = UDim2.new(1, -8, 0, 38), BackgroundColor3 = Color3.fromRGB(12, 12, 12), Text = "", ZIndex = 105 }, 6)
-            create("UIStroke", cardBtn, { Color = Color3.fromRGB(35, 35, 35), Thickness = 1 })
-            create("ImageLabel", cardBtn, { Size = UDim2.new(0, 20, 0, 20), Position = UDim2.new(0, 10, 0.5, -10), BackgroundTransparency = 1, Image = "rbxassetid://92027896399298", ScaleType = Enum.ScaleType.Fit, ZIndex = 106 })
+            local cardBtn = create("TextButton", listPage, { Size = UDim2.new(1, -8, 0, 42), BackgroundColor3 = C_DARK, Text = "", ZIndex = 105 }, 6, Color3.fromRGB(50, 50, 50), 1)
+            create("ImageLabel", cardBtn, { Size = UDim2.new(0, 24, 0, 24), Position = UDim2.new(0, 10, 0.5, -12), BackgroundTransparency = 1, Image = "rbxassetid://92027896399298", ScaleType = Enum.ScaleType.Fit, ZIndex = 106 })
             local txt = (p == LP and "[VOCÊ] " or "") .. p.DisplayName .. " (@" .. p.Name .. ")"
-            create("TextLabel", cardBtn, { Size = UDim2.new(1, -85, 1, 0), Position = UDim2.new(0, 38, 0, 0), BackgroundTransparency = 1, Text = txt, TextColor3 = Color3.fromRGB(255, 255, 255), TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 11, ZIndex = 106 })
-            create("ImageLabel", cardBtn, { Size = UDim2.new(0, 22, 0, 22), Position = UDim2.new(1, -20, 0.5, -11), BackgroundTransparency = 1, Image = "rbxassetid://131196469256282", ScaleType = Enum.ScaleType.Fit, ZIndex = 106 })
+            create("TextLabel", cardBtn, { Size = UDim2.new(1, -95, 1, 0), Position = UDim2.new(0, 42, 0, 0), BackgroundTransparency = 1, Text = txt, TextColor3 = C_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 12, ZIndex = 106 })
 
             local function buildRawFromPlayer()
                 local hum = p.Character and p.Character:FindFirstChildOfClass("Humanoid")
@@ -779,13 +563,10 @@ local function updatePlayerList()
                     raw.Shirt = d.Shirt raw.Pants = d.Pants raw.Face = d.Face
                     raw.BodyParts = { Head = d.Head, Torso = d.Torso, LeftArm = d.LeftArm, RightArm = d.RightArm, LeftLeg = d.LeftLeg, RightLeg = d.RightLeg }
                     raw.Animations = { Idle = d.IdleAnimation, Walk = d.WalkAnimation, Run = d.RunAnimation, Jump = d.JumpAnimation, Fall = d.FallAnimation, Climb = d.ClimbAnimation, Swim = d.SwimAnimation }
-                    for _, a in ipairs(d:GetAccessories(true)) do
-                        if a.AssetId and a.AssetId ~= 0 then table.insert(raw.Accessories, a.AssetId) end
-                    end
+                    for _, a in ipairs(d:GetAccessories(true)) do if a.AssetId and a.AssetId ~= 0 then table.insert(raw.Accessories, a.AssetId) end end
                     pcall(function() d:Destroy() end)
                 end
-                raw.Full = full
-                raw.UserId = p.UserId
+                raw.Full = full raw.UserId = p.UserId
                 return raw
             end
 
@@ -794,109 +575,62 @@ local function updatePlayerList()
                 if raw then displayAvatarData(p.Name, raw) end
             end)
 
-            if not UserInputService.TouchEnabled then
-                cardBtn.MouseEnter:Connect(function()
-                    local raw = buildRawFromPlayer()
-                    if raw then showHoverPreview(raw, p.DisplayName, detectRigType(p), cardBtn, p.UserId) end
-                end)
-                cardBtn.MouseLeave:Connect(function()
-                    if previewButton == cardBtn then stopHoverPreview() end
-                end)
-            else
-                local pressTime = nil
-                cardBtn.InputBegan:Connect(function(input)
-                    if input.UserInputType == Enum.UserInputType.Touch then
-                        pressTime = os.clock()
-                        task.delay(0.5, function()
-                            if pressTime and os.clock() - pressTime >= 0.45 and previewButton ~= cardBtn then
-                                local raw = buildRawFromPlayer()
-                                if raw then showHoverPreview(raw, p.DisplayName, detectRigType(p), cardBtn, p.UserId) end
-                            end
-                        end)
-                    end
-                end)
-                cardBtn.InputEnded:Connect(function(input)
-                    if input.UserInputType == Enum.UserInputType.Touch then
-                        pressTime = nil
-                        if previewButton == cardBtn then stopHoverPreview() end
-                    end
-                end)
-            end
+            local camBtn = create("ImageButton", cardBtn, { Size = UDim2.new(0, 24, 0, 24), Position = UDim2.new(1, -34, 0.5, -12), BackgroundTransparency = 1, Image = "rbxassetid://131196469256282", ScaleType = Enum.ScaleType.Fit, ZIndex = 106 })
+            camBtn.MouseButton1Click:Connect(function()
+                local raw = buildRawFromPlayer()
+                if raw then showHoverPreview(raw, p.DisplayName, detectRigType(p), p.UserId) end
+            end)
         end
     end
 end
 
-searchBox:GetPropertyChangedSignal("Text"):Connect(function()
-    if currentTab == "Players" and not detailPage.Visible then updatePlayerList() end
-end)
+searchBox:GetPropertyChangedSignal("Text"):Connect(function() if currentTab == "Players" and not detailPage.Visible then updatePlayerList() end end)
 searchClearBtn.MouseButton1Click:Connect(function() searchBox.Text = "" end)
 
 updateSavedList = function()
     clearList() local saved = {} modifyFile(function(f) saved = f end)
-    if not next(saved) then
-        create("TextLabel", listPage, { Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 1, Text = "NENHUM AVATAR SALVO.", TextColor3 = Color3.fromRGB(140, 140, 140), Font = ARCADE_FONT, TextSize = 12 }) return
-    end
+    if not next(saved) then create("TextLabel", listPage, { Size = UDim2.new(1, 0, 0, 40), BackgroundTransparency = 1, Text = "NENHUM AVATAR SALVO.", TextColor3 = Color3.fromRGB(140, 140, 140), Font = ARCADE_FONT, TextSize = 12 }) return end
+    
     local sortedKeys = {}
     for k in pairs(saved) do table.insert(sortedKeys, k) end
     table.sort(sortedKeys)
 
     for _, uniqueId in ipairs(sortedKeys) do
         local item = saved[uniqueId]
-        local container = create("Frame", listPage, { Size = UDim2.new(1, -8, 0, 35), BackgroundColor3 = Color3.fromRGB(15, 15, 15) }, 6)
-        create("UIStroke", container, { Color = Color3.fromRGB(45, 45, 45), Thickness = 1 })
-        local b = create("TextButton", container, { Size = UDim2.new(1, -110, 1, 0), BackgroundTransparency = 1, Text = "    " .. item.Name, TextColor3 = Color3.fromRGB(255, 255, 255), TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 11, ZIndex = 105 })
+        -- Estilo do card da Aba 2 (Modernizado)
+        local container = create("Frame", listPage, { Size = UDim2.new(1, -8, 0, 48), BackgroundColor3 = Color3.fromRGB(10, 10, 10), ZIndex = 104 }, 8, C_BORDER, 2)
+        local b = create("TextButton", container, { Size = UDim2.new(1, -170, 1, 0), BackgroundTransparency = 1, Text = "   " .. item.Name, TextColor3 = C_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 13, ZIndex = 105 })
         b.MouseButton1Click:Connect(function() displayAvatarData(item.Name, item.Data) end)
 
         local userIdForPreview = item.Data and item.Data.UserId
 
-        if not UserInputService.TouchEnabled then
-            b.MouseEnter:Connect(function()
-                showHoverPreview(item.Data, item.Name, detectRigTypeFromRaw(item.Data), b, userIdForPreview)
-            end)
-            b.MouseLeave:Connect(function()
-                if previewButton == b then stopHoverPreview() end
-            end)
-        else
-            local pressTime = nil
-            b.InputBegan:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.Touch then
-                    pressTime = os.clock()
-                    task.delay(0.5, function()
-                        if pressTime and os.clock() - pressTime >= 0.45 and previewButton ~= b then
-                            showHoverPreview(item.Data, item.Name, detectRigTypeFromRaw(item.Data), b, userIdForPreview)
-                        end
-                    end)
-                end
-            end)
-            b.InputEnded:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.Touch then
-                    pressTime = nil
-                    if previewButton == b then stopHoverPreview() end
-                end
-            end)
-        end
-
-        -- ⭐ MÉTODO ANTIGO RESTAURADO (Paciente e confiável)
-        local copySkinBtn = create("ImageButton", container, { Size = UDim2.new(0, 22, 0, 22), Position = UDim2.new(1, -66, 0.5, 0), AnchorPoint = Vector2.new(1, 0.5), BackgroundTransparency = 1, Image = "rbxassetid://133764834615931", ScaleType = Enum.ScaleType.Fit, ZIndex = 106 })
+        -- Botão COPY
+        local copySkinBtn = create("TextButton", container, { Size = UDim2.new(0, 55, 0, 28), Position = UDim2.new(1, -140, 0.5, -14), BackgroundColor3 = Color3.fromRGB(30, 30, 30), Text = "COPY", TextColor3 = C_TEXT, Font = Enum.Font.Arcade, TextSize = 11, ZIndex = 106 }, 4, Color3.fromRGB(80,80,80), 1)
+        local copyIcon = create("ImageLabel", copySkinBtn, { Size = UDim2.new(0, 12, 0, 12), Position = UDim2.new(0, 6, 0.5, -6), BackgroundTransparency = 1, Image = "rbxassetid://133764834615931", ImageColor3 = C_PURPLE, ZIndex = 107 })
+        create("TextLabel", copySkinBtn, { Size = UDim2.new(1, -20, 1, 0), Position = UDim2.new(0, 20, 0, 0), BackgroundTransparency = 1, Text = "COPY", TextColor3 = C_PURPLE, Font = Enum.Font.Arcade, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 107 })
+        
         copySkinBtn.MouseButton1Click:Connect(function()
-            local originalImage = copySkinBtn.Image
-            copySkinBtn.Image = "rbxassetid://98235327129327" -- ícone de loading (o X)
-            copySkinBtn.Active = false
+            local orig = copySkinBtn.BackgroundColor3
+            copySkinBtn.BackgroundColor3 = Color3.fromRGB(60, 0, 90)
             task.spawn(function()
                 pcall(clonarSkinBrookhaven, item.Data)
-                if copySkinBtn and copySkinBtn.Parent then
-                    copySkinBtn.Image = originalImage
-                    copySkinBtn.Active = true
-                end
+                if copySkinBtn and copySkinBtn.Parent then copySkinBtn.BackgroundColor3 = orig end
             end)
         end)
 
-        local function createActionBtn(img, xOffset, cb)
-            local btn = create("ImageButton", container, { Size = UDim2.new(0, 22, 0, 22), Position = UDim2.new(1, xOffset, 0.5, 0), AnchorPoint = Vector2.new(1, 0.5), BackgroundTransparency = 1, Image = "rbxassetid://"..img, ScaleType = Enum.ScaleType.Fit, ZIndex = 106 })
-            btn.MouseButton1Click:Connect(cb)
-        end
-        createActionBtn("105157650009654", -38, function() activeRenameId, renameInput.Text, renameGui.Visible = uniqueId, item.Name, true end)
-        createActionBtn("98235327129327", -10, function() modifyFile(function(f) f[uniqueId] = nil end) updateSavedList() end)
+        -- Botão EDITAR (Lápis)
+        local editBtn = create("ImageButton", container, { Size = UDim2.new(0, 28, 0, 28), Position = UDim2.new(1, -80, 0.5, -14), BackgroundColor3 = Color3.fromRGB(30, 30, 30), Image = "rbxassetid://105157650009654", ScaleType = Enum.ScaleType.Fit, ZIndex = 106 }, 4, Color3.fromRGB(80,80,80), 1)
+        editBtn.MouseButton1Click:Connect(function() activeRenameId, renameInput.Text, renameGui.Visible = uniqueId, item.Name, true end)
+
+        -- Botão EXCLUIR (X)
+        local delBtn = create("ImageButton", container, { Size = UDim2.new(0, 28, 0, 28), Position = UDim2.new(1, -48, 0.5, -14), BackgroundColor3 = Color3.fromRGB(30, 30, 30), Image = "rbxassetid://98235327129327", ScaleType = Enum.ScaleType.Fit, ZIndex = 106 }, 4, Color3.fromRGB(80,80,80), 1)
+        delBtn.MouseButton1Click:Connect(function() modifyFile(function(f) f[uniqueId] = nil end) updateSavedList() end)
+
+        -- Botão 3D (Novo ID 130210093071386)
+        local view3dBtn = create("ImageButton", container, { Size = UDim2.new(0, 28, 0, 28), Position = UDim2.new(1, -16, 0.5, -14), BackgroundColor3 = Color3.fromRGB(30, 30, 30), Image = "rbxassetid://130210093071386", ScaleType = Enum.ScaleType.Fit, ZIndex = 106 }, 4, C_PURPLE, 1)
+        view3dBtn.MouseButton1Click:Connect(function()
+            showHoverPreview(item.Data, item.Name, detectRigTypeFromRaw(item.Data), userIdForPreview)
+        end)
     end
 end
 
@@ -906,9 +640,7 @@ local function migrateOldSkinsOnce()
     migrationDone = true
     modifyFile(function(f)
         for uniqueId, item in pairs(f) do
-            if type(item) == "table" and type(item.Data) == "table"
-                and not item.Data.Full
-                and tonumber(item.Data.UserId) and tonumber(item.Data.UserId) > 0 then
+            if type(item) == "table" and type(item.Data) == "table" and not item.Data.Full and tonumber(item.Data.UserId) and tonumber(item.Data.UserId) > 0 then
                 local fetched = fetchFullDescriptionByUserId(tonumber(item.Data.UserId))
                 if fetched then item.Data.Full = fetched end
             end
@@ -927,29 +659,18 @@ local function returnToMainPlayers()
 end
 
 bk.MouseButton1Click:Connect(function()
-    detailPage.Visible = false
-    listPage.Visible = true
+    detailPage.Visible = false listPage.Visible = true
     if currentTab == "Players" then
-        title.Text = "INSPECIONADOR DE AVATAR V1 SPANW"
-        subTitle.Text = "LISTA DE JOGADORES • PESQUISE E SELECIONE"
-        updatePlayerList()
+        title.Text = "INSPECIONADOR DE AVATAR V1 SPANW" subTitle.Text = "LISTA DE JOGADORES • PESQUISE E SELECIONE" updatePlayerList()
     else
-        title.Text = "Skin Storage INSPECTION"
-        subTitle.Text = "AVATARES SALVOS"
-        updateSavedList()
+        title.Text = "Skin Storage INSPECTION" subTitle.Text = "AVATARES SALVOS" updateSavedList()
     end
     updateVisibility()
 end)
 
 databaseReturnBtn.MouseButton1Click:Connect(returnToMainPlayers)
 footerDatabaseReturnBtn.MouseButton1Click:Connect(returnToMainPlayers)
-
-closeButton.MouseButton1Click:Connect(function()
-    stopHoverPreview()
-    clearPreviewCache()
-    sg:Destroy()
-end)
-
+closeButton.MouseButton1Click:Connect(function() stopHoverPreview() clearPreviewCache() sg:Destroy() end)
 cancelBtn.MouseButton1Click:Connect(function() confirmGui.Visible = false end)
 renameCancelBtn.MouseButton1Click:Connect(function() renameGui.Visible = false activeRenameId = nil end)
 
@@ -978,10 +699,7 @@ end)
 
 confirmBtn.MouseButton1Click:Connect(function() if currentId and setclipboard then setclipboard(tostring(currentId)) confirmGui.Visible = false end end)
 
-launcher.InputBegan:Connect(function(i)
-    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging, hasMoved, dStart, sPos = true, false, i.Position, launcher.Position end
-end)
-
+launcher.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging, hasMoved, dStart, sPos = true, false, i.Position, launcher.Position end end)
 UserInputService.InputChanged:Connect(function(i)
     if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
         local delta = i.Position - dStart if delta.Magnitude > 5 then hasMoved = true end
@@ -1031,15 +749,10 @@ task.spawn(function()
 
     _G.ScriptManagerQueue = _G.ScriptManagerQueue or {}
     _G.RegisteredScriptDatabase = _G.RegisteredScriptDatabase or {}
-
     local persistedVis = sg:GetAttribute("SPWN_ManagedVisibility")
-
     _G.RegisteredScriptDatabase[scriptId] = {
-        Name = scriptConfig.Name,
-        Category = scriptConfig.Category,
-        GuiObject = scriptConfig.GuiObject,
-        IsVisible = (persistedVis == nil) and true or persistedVis,
-        OnDestroy = scriptConfig.OnDestroy
+        Name = scriptConfig.Name, Category = scriptConfig.Category, GuiObject = scriptConfig.GuiObject,
+        IsVisible = (persistedVis == nil) and true or persistedVis, OnDestroy = scriptConfig.OnDestroy
     }
 
     local exists = false
@@ -1047,7 +760,5 @@ task.spawn(function()
         if item.id == scriptId then exists = true item.config = scriptConfig break end
     end
     if not exists then table.insert(_G.ScriptManagerQueue, {id = scriptId, config = scriptConfig}) end
-    if _G.ScriptManager and type(_G.ScriptManager.RegisterScript) == "function" then
-        _G.ScriptManager.RegisterScript(scriptId, scriptConfig)
-    end
+    if _G.ScriptManager and type(_G.ScriptManager.RegisterScript) == "function" then _G.ScriptManager.RegisterScript(scriptId, scriptConfig) end
 end)

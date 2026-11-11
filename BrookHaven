@@ -14,6 +14,7 @@ local function create(className, parent, props, cornerRadius, strokeColor, strok
         local s = Instance.new("UIStroke", inst)
         s.Color = strokeColor
         s.Thickness = strokeThick or 1
+        s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border -- Garante que a borda seja aplicada apenas na borda externa
     end
     inst.Parent = parent return inst
 end
@@ -61,7 +62,7 @@ local saveSkinBtn, databaseReturnBtn = createHeaderBtn("124334702798776", -75, f
 
 -- CAMPO DE PESQUISA
 local searchContainer = create("Frame", main, { Size = UDim2.new(1, -20, 0, 32), Position = UDim2.new(0, 10, 0, 52), BackgroundColor3 = Color3.fromRGB(10, 10, 10), ZIndex = 102 }, 6)
-create("UIStroke", searchContainer, { Color = Color3.fromRGB(60, 60, 60), Thickness = 1 })
+create("UIStroke", searchContainer, { Color = Color3.fromRGB(60, 60, 60), Thickness = 1, ApplyStrokeMode = Enum.ApplyStrokeMode.Border })
 local searchBox = create("TextBox", searchContainer, { Size = UDim2.new(1, -35, 1, 0), Position = UDim2.new(0, 10, 0, 0), BackgroundTransparency = 1, Text = "", PlaceholderText = "Digite o nome...", TextColor3 = Color3.fromRGB(255, 255, 255), PlaceholderColor3 = Color3.fromRGB(130, 130, 130), Font = ARCADE_FONT, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, ClearTextOnFocus = false, ZIndex = 103 })
 local searchClearBtn = create("TextButton", searchContainer, { Size = UDim2.new(0, 25, 1, 0), Position = UDim2.new(1, -25, 0, 0), BackgroundTransparency = 1, Text = "X", TextColor3 = Color3.fromRGB(180, 180, 180), Font = ARCADE_FONT, TextSize = 14, ZIndex = 103 })
 
@@ -71,13 +72,28 @@ create("UIListLayout", listPage, { Padding = UDim.new(0, 8), SortOrder = Enum.So
 
 local detailPage = create("Frame", main, { Size = UDim2.new(1, 0, 1, -50), Position = UDim2.new(0, 0, 0, 50), BackgroundTransparency = 1, Visible = false, ZIndex = 102 })
 
--- Botão 3D Vision Mode (Borda branca no botão inteiro, não no texto)
-local visionToggleBtn = create("TextButton", detailPage, { Size = UDim2.new(0, 140, 0, 24), Position = UDim2.new(1, -150, 0, 2), BackgroundColor3 = Color3.fromRGB(15, 15, 15), Text = "3D vision mode ( Off )", TextColor3 = Color3.fromRGB(255, 255, 255), Font = ARCADE_FONT, TextSize = 10, ZIndex = 110, AutoButtonColor = false })
-create("UICorner", visionToggleBtn, { CornerRadius = UDim.new(0, 4) })
-create("UIStroke", visionToggleBtn, { Color = Color3.fromRGB(255, 255, 255), Thickness = 1.5 }) -- Borda no botão (fundo preto)
+-- Botão 3D Vision Mode (Ajustado com altura maior, fundo preto e borda branca no botão)
+local visionToggleBtn = create("TextButton", detailPage, { 
+    Size = UDim2.new(0, 140, 0, 28), -- Aumentei um pouco a altura
+    Position = UDim2.new(1, -150, 0, 0), 
+    BackgroundColor3 = Color3.fromRGB(15, 15, 15), 
+    Text = "3D vision mode ( Off )", 
+    TextColor3 = Color3.fromRGB(255, 255, 255), 
+    Font = ARCADE_FONT, 
+    TextSize = 10, 
+    ZIndex = 110, 
+    AutoButtonColor = false 
+})
+-- Adicionando o arredondamento e a borda diretamente
+Instance.new("UICorner", visionToggleBtn).CornerRadius = UDim.new(0, 4)
+local stroke = Instance.new("UIStroke", visionToggleBtn)
+stroke.Color = Color3.fromRGB(255, 255, 255)
+stroke.Thickness = 1.5
+stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
 visionToggleBtn.Visible = false
 
-local gridScroll = create("ScrollingFrame", detailPage, { Size = UDim2.new(1, -20, 1, -65), Position = UDim2.new(0, 10, 0, 30), BackgroundTransparency = 1, BorderSizePixel = 0, VerticalScrollBarInset = Enum.ScrollBarInset.None, ScrollBarThickness = 3, ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255), ZIndex = 103, AutomaticCanvasSize = Enum.AutomaticSize.Y })
+local gridScroll = create("ScrollingFrame", detailPage, { Size = UDim2.new(1, -20, 1, -65), Position = UDim2.new(0, 10, 0, 35), BackgroundTransparency = 1, BorderSizePixel = 0, VerticalScrollBarInset = Enum.ScrollBarInset.None, ScrollBarThickness = 3, ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255), ZIndex = 103, AutomaticCanvasSize = Enum.AutomaticSize.Y })
 create("UIGridLayout", gridScroll, { CellSize = UDim2.new(0, 82, 0, 115), CellPadding = UDim2.new(0, 8, 0, 8) })
 
 -- POPUPS
@@ -89,7 +105,7 @@ local cancelBtn = create("TextButton", confirmGui, { Size = UDim2.new(1, -30, 0,
 local renameGui = create("Frame", sg, { Size = UDim2.new(0, 260, 0, 150), Position = UDim2.new(0.5, -130, 0.5, -75), BackgroundColor3 = Color3.fromRGB(10, 10, 10), Visible = false, ZIndex = 3000 }, 8, Color3.fromRGB(255, 255, 255), 2)
 local renameTitle = create("TextLabel", renameGui, { Size = UDim2.new(1, 0, 0, 35), Text = "NOVO NOME DA SKIN:", TextColor3 = Color3.fromRGB(255, 255, 255), Font = ARCADE_FONT, TextSize = 14, BackgroundTransparency = 1, ZIndex = 3001 })
 local renameInput = create("TextBox", renameGui, { Size = UDim2.new(1, -30, 0, 35), Position = UDim2.new(0, 15, 0, 45), BackgroundColor3 = Color3.fromRGB(25, 25, 25), Text = "", TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.GothamBold, TextSize = 13, ClearTextOnFocus = false, ZIndex = 3001 }, 4)
-create("UIStroke", renameInput, { Color = Color3.fromRGB(60, 60, 60), Thickness = 1 })
+create("UIStroke", renameInput, { Color = Color3.fromRGB(60, 60, 60), Thickness = 1, ApplyStrokeMode = Enum.ApplyStrokeMode.Border })
 local renameConfirmBtn = create("TextButton", renameGui, { Size = UDim2.new(0, 105, 0, 35), Position = UDim2.new(0, 15, 0, 100), BackgroundColor3 = Color3.fromRGB(30, 30, 30), Text = "CONFIRMAR", TextColor3 = Color3.fromRGB(255, 255, 255), Font = ARCADE_FONT, TextSize = 12, ZIndex = 3001 }, 4)
 local renameCancelBtn = create("TextButton", renameGui, { Size = UDim2.new(0, 105, 0, 35), Position = UDim2.new(1, -120, 0, 100), BackgroundColor3 = Color3.fromRGB(30, 30, 30), Text = "CANCELAR", TextColor3 = Color3.fromRGB(255, 255, 255), Font = ARCADE_FONT, TextSize = 12, ZIndex = 3001 }, 4)
 

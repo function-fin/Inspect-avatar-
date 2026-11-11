@@ -71,9 +71,8 @@ create("UIListLayout", listPage, { Padding = UDim.new(0, 8), SortOrder = Enum.So
 
 local detailPage = create("Frame", main, { Size = UDim2.new(1, 0, 1, -50), Position = UDim2.new(0, 0, 0, 50), BackgroundTransparency = 1, Visible = false, ZIndex = 102 })
 
--- Botão 3D Vision Mode (Borda branca correta ao redor do texto)
-local visionToggleBtn = create("TextButton", detailPage, { Size = UDim2.new(0, 140, 0, 24), Position = UDim2.new(1, -150, 0, 2), BackgroundColor3 = Color3.fromRGB(15, 15, 15), Text = "3D vision mode ( Off )", TextColor3 = Color3.fromRGB(255, 255, 255), Font = ARCADE_FONT, TextSize = 10, ZIndex = 110 })
-create("UIStroke", visionToggleBtn, { Color = Color3.fromRGB(255, 255, 255), Thickness = 1.5 }) -- Borda branca no texto
+-- Botão 3D Mode na tela de detalhes
+local visionToggleBtn = create("TextButton", detailPage, { Size = UDim2.new(0, 140, 0, 24), Position = UDim2.new(1, -150, 0, 2), BackgroundColor3 = Color3.fromRGB(15, 15, 15), Text = "3D vision mode ( Off )", TextColor3 = Color3.fromRGB(200, 200, 200), Font = ARCADE_FONT, TextSize = 10, ZIndex = 110 }, 4, Color3.fromRGB(60, 60, 60), 1)
 visionToggleBtn.Visible = false
 
 local gridScroll = create("ScrollingFrame", detailPage, { Size = UDim2.new(1, -20, 1, -65), Position = UDim2.new(0, 10, 0, 30), BackgroundTransparency = 1, BorderSizePixel = 0, VerticalScrollBarInset = Enum.ScrollBarInset.None, ScrollBarThickness = 3, ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255), ZIndex = 103, AutomaticCanvasSize = Enum.AutomaticSize.Y })
@@ -96,7 +95,7 @@ local footerDatabaseReturnBtn = create("TextButton", main, { Size = UDim2.new(1,
 local bk = create("TextButton", detailPage, { Size = UDim2.new(1, -20, 0, 35), Position = UDim2.new(0, 10, 1, -40), BackgroundColor3 = Color3.fromRGB(20, 20, 20), Text = "VOLTAR PARA LISTA", TextColor3 = Color3.fromRGB(255, 255, 255), Font = ARCADE_FONT, TextSize = 14, ZIndex = 110 }, 6, Color3.fromRGB(35, 35, 35), 1)
 
 -- ============================================================
--- SISTEMA DE PREVIEW 3D
+-- SISTEMA DE PREVIEW 3D (CORES PERFEITAS + FIXO)
 -- ============================================================
 
 local function parseAssetId(val)
@@ -271,7 +270,7 @@ local function getPreviewKey(raw, rigType)
     return ok and encoded or tostring(raw)
 end
 
-local function buildPreviewTemplate(raw, rigType, cacheKey)
+local function buildPreviewTemplate(raw, rigType, cacheKey, userId)
     local desc, rigTypeFromFull
     if type(raw) == "table" and type(raw.Full) == "table" then desc = buildDescriptionFromFull(raw.Full) if raw.Full.RigType then rigTypeFromFull = raw.Full.RigType end end
     if not desc then desc = buildDescriptionFromRaw(raw) end
@@ -299,9 +298,6 @@ local hoverPreview = create("Frame", sg, {
     Visible = false,
     ZIndex = 1500,
 }, 8, Color3.fromRGB(255, 255, 255), 3)
-
--- Overlay invisível para fechar ao clicar fora (ZIndex 1490 fica atrás do preview mas na frente do jogo)
-local closeOverlay = create("TextButton", sg, { Name = "CloseOverlay", Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = "", Visible = false, ZIndex = 1490 })
 
 local hoverTitle = create("TextLabel", hoverPreview, {
     Size = UDim2.new(1, -16, 0, 24), Position = UDim2.new(0, 8, 0, 8),
@@ -342,7 +338,6 @@ local function stopHoverPreview()
     if previewModel then pcall(function() previewModel:Destroy() end) previewModel = nil end
     previewViewport = nil
     hoverPreview.Visible = false
-    closeOverlay.Visible = false
 end
 
 local function createViewport(parent)
@@ -376,10 +371,6 @@ local function showHoverPreview(raw, displayName, rigType)
     hoverStatus.Text = "Carregando..."
     hoverStatus.Visible = true
     hoverPreview.Visible = true
-    
-    -- Sobe o overlay para pegar cliques fora (mas atrás do preview)
-    closeOverlay.Visible = true
-    closeOverlay.Parent = sg
 
     task.spawn(function()
         local vp, wm, cam = createViewport(hoverViewportHolder)
@@ -419,10 +410,12 @@ end
 local function updateVisionModeState()
     if isVisionModeOn and currentInspectedData then
         visionToggleBtn.Text = "3D vision mode ( On )"
+        visionToggleBtn.TextColor3 = Color3.fromRGB(170, 0, 255)
         local rig = detectRigTypeFromRaw(currentInspectedData)
         showHoverPreview(currentInspectedData, currentInspectedName, rig)
     else
         visionToggleBtn.Text = "3D vision mode ( Off )"
+        visionToggleBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
         stopHoverPreview()
     end
 end
@@ -432,15 +425,8 @@ visionToggleBtn.MouseButton1Click:Connect(function()
     updateVisionModeState()
 end)
 
-closeOverlay.MouseButton1Click:Connect(function()
-    if isVisionModeOn then
-        isVisionModeOn = false
-        updateVisionModeState()
-    end
-end)
-
 -- ============================================================
--- LÓGICA GERAL E LISTAS
+-- LÓGICA GERAL
 -- ============================================================
 
 local function updateVisibility()
@@ -451,7 +437,9 @@ local function updateVisibility()
     saveSkinBtn.Visible = isDetail and isPlayers
     footerDatabaseReturnBtn.Visible = not isDetail and not isPlayers
     
-    searchContainer.Visible = not isDetail 
+    searchContainer.Visible = not isDetail and isPlayers
+    listPage.Position = (not isDetail and isPlayers) and UDim2.new(0, 10, 0, 90) or UDim2.new(0, 10, 0, 52)
+    listPage.Size = UDim2.new(1, -20, 1, (not isDetail and isPlayers) and -95 or ((not isDetail and not isPlayers) and -115 or -65))
     
     if isDetail then
         visionToggleBtn.Visible = true
@@ -537,9 +525,7 @@ local function updatePlayerList()
             create("ImageLabel", cardBtn, { Size = UDim2.new(0, 20, 0, 20), Position = UDim2.new(0, 10, 0.5, -10), BackgroundTransparency = 1, Image = "rbxassetid://92027896399298", ScaleType = Enum.ScaleType.Fit, ZIndex = 106 })
             local txt = (p == LP and "[VOCÊ] " or "") .. p.DisplayName .. " (@" .. p.Name .. ")"
             create("TextLabel", cardBtn, { Size = UDim2.new(1, -85, 1, 0), Position = UDim2.new(0, 38, 0, 0), BackgroundTransparency = 1, Text = txt, TextColor3 = Color3.fromRGB(255, 255, 255), TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 11, ZIndex = 106 })
-            
-            -- Botão ID limpo (sem fundo)
-            local idBtn = create("ImageButton", cardBtn, { Size = UDim2.new(0, 22, 0, 22), Position = UDim2.new(1, -20, 0.5, -11), BackgroundTransparency = 1, Image = "rbxassetid://131196469256282", ScaleType = Enum.ScaleType.Fit, ZIndex = 106 })
+            create("ImageLabel", cardBtn, { Size = UDim2.new(0, 22, 0, 22), Position = UDim2.new(1, -20, 0.5, -11), BackgroundTransparency = 1, Image = "rbxassetid://131196469256282", ScaleType = Enum.ScaleType.Fit, ZIndex = 106 })
             
             cardBtn.MouseButton1Click:Connect(function()
                 local hum = p.Character and p.Character:FindFirstChildOfClass("Humanoid")
@@ -547,18 +533,7 @@ local function updatePlayerList()
                 if s and d then
                     local raw = { Shirt = d.Shirt, Pants = d.Pants, Face = d.Face, Accessories = {}, BodyParts = { Head = d.Head, Torso = d.Torso, LeftArm = d.LeftArm, RightArm = d.RightArm, LeftLeg = d.LeftLeg, RightLeg = d.RightLeg }, Animations = { Idle = d.IdleAnimation, Walk = d.WalkAnimation, Run = d.RunAnimation, Jump = d.JumpAnimation, Fall = d.FallAnimation, Climb = d.ClimbAnimation, Swim = d.SwimAnimation } }
                     for _, a in ipairs(d:GetAccessories(true)) do if a.AssetId and a.AssetId ~= 0 then table.insert(raw.Accessories, a.AssetId) end end
-                    local full = serializeFullDescription(hum)
-                    raw.Full = full
-                    displayAvatarData(p.Name, raw)
-                end
-            end)
-            
-            idBtn.MouseButton1Click:Connect(function()
-                local hum = p.Character and p.Character:FindFirstChildOfClass("Humanoid")
-                local s, d = pcall(function() return hum and hum:GetAppliedDescription(hum) end)
-                if s and d then
-                    local raw = { Shirt = d.Shirt, Pants = d.Pants, Face = d.Face, Accessories = {}, BodyParts = { Head = d.Head, Torso = d.Torso, LeftArm = d.LeftArm, RightArm = d.RightArm, LeftLeg = d.LeftLeg, RightLeg = d.RightLeg }, Animations = { Idle = d.IdleAnimation, Walk = d.WalkAnimation, Run = d.RunAnimation, Jump = d.JumpAnimation, Fall = d.FallAnimation, Climb = d.ClimbAnimation, Swim = d.SwimAnimation } }
-                    for _, a in ipairs(d:GetAccessories(true)) do if a.AssetId and a.AssetId ~= 0 then table.insert(raw.Accessories, a.AssetId) end end
+                    
                     local full = serializeFullDescription(hum)
                     raw.Full = full
                     displayAvatarData(p.Name, raw)
@@ -580,8 +555,8 @@ updateSavedList = function()
 
     local sortedKeys = {}
     for k in pairs(saved) do table.insert(sortedKeys, k) end
-    table.sort(sortedKeys, function(a, b) return a > b end) -- Inverte para ordem decrescente (mais novo no topo)
-
+    table.sort(sortedKeys)
+    
     local filterText = searchBox.Text:lower()
 
     for _, uniqueId in ipairs(sortedKeys) do
@@ -589,11 +564,13 @@ updateSavedList = function()
         local itemName = tostring(item.Name or "")
         
         if filterText == "" or itemName:lower():find(filterText, 1, true) then
+            -- Cards Grandes e Organizados da Aba Storage
             local container = create("Frame", listPage, { Size = UDim2.new(1, -8, 0, 50), BackgroundColor3 = Color3.fromRGB(15, 15, 15) }, 8, Color3.fromRGB(80, 80, 80), 2)
             
             local b = create("TextButton", container, { Size = UDim2.new(1, -160, 1, 0), BackgroundTransparency = 1, Text = "  " .. itemName, TextColor3 = Color3.fromRGB(255, 255, 255), TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 14, ZIndex = 105 })
             b.MouseButton1Click:Connect(function() displayAvatarData(itemName, item.Data) end)
 
+            -- Botões Alinhados a Direita
             local copySkinBtn = create("ImageButton", container, { Size = UDim2.new(0, 34, 0, 34), Position = UDim2.new(1, -125, 0.5, -17), BackgroundColor3 = Color3.fromRGB(25, 25, 25), Image = "rbxassetid://133764834615931", ScaleType = Enum.ScaleType.Fit, ZIndex = 106 }, 6, Color3.fromRGB(255, 255, 255), 2)
             copySkinBtn.MouseButton1Click:Connect(function() task.spawn(clonarSkinBrookhaven, item.Data) end)
 
@@ -635,9 +612,11 @@ renameCancelBtn.MouseButton1Click:Connect(function() renameGui.Visible = false a
 renameConfirmBtn.MouseButton1Click:Connect(function()
     if renameInput.Text ~= "" then
         if activeRenameId then
+            -- Renomear existente
             modifyFile(function(f) if f[activeRenameId] then f[activeRenameId].Name = renameInput.Text end end)
             updateSavedList()
         else
+            -- Salvar nova skin
             modifyFile(function(f) f[HttpService:GenerateGUID(false)] = { Name = renameInput.Text, Data = currentInspectedData } end)
             returnToMainPlayers()
         end
@@ -649,13 +628,13 @@ folderTabBtn.MouseButton1Click:Connect(function()
     currentTab = "Database"
     title.Text = "Skin Storage INSPECTION"
     subTitle.Text = "AVATARES SALVOS"
-    searchBox.Text = "" 
     updateSavedList()
     updateVisibility()
 end)
 
 saveSkinBtn.MouseButton1Click:Connect(function() 
     if currentInspectedData and currentInspectedName ~= "" then 
+        -- Abre a caixa para nomear a nova skin antes de salvar
         activeRenameId = nil
         renameInput.Text = ""
         renameTitle.Text = "NOMEIE SUA NOVA SKIN:"

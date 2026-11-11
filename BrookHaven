@@ -49,7 +49,7 @@ UserInputService:GetPropertyChangedSignal("TouchEnabled"):Connect(updateUIScale)
 updateUIScale()
 
 local currentId, currentInspectedData, currentInspectedName, currentTab, activeRenameId = nil, nil, "", "Players", nil
-local main = create("Frame", sg, { Size = UDim2.new(0, 420, 0, 380), Position = UDim2.new(0.5, -210, 0.5, -190), BackgroundColor3 = C_BG, Visible = false, ZIndex = 100 }, 8, C_BORDER, 3)
+local main = create("Frame", sg, { Size = UDim2.new(0, 420, 0, 400), Position = UDim2.new(0.5, -210, 0.5, -200), BackgroundColor3 = C_BG, Visible = false, ZIndex = 100 }, 8, C_BORDER, 3)
 
 local launcher = create("ImageButton", sg, { Name = "OpenToggleButton", Size = UDim2.new(0, 70, 0, 70), Position = UDim2.new(0.05, 0, 0.4, 0), AnchorPoint = Vector2.new(0.5, 0.5), BackgroundTransparency = 1, Image = "rbxassetid://88903575940312", ScaleType = Enum.ScaleType.Fit, ZIndex = 1000 })
 local dStart, sPos, dragging, hasMoved = nil, nil, false, false
@@ -60,6 +60,9 @@ local titleIcon = create("ImageLabel", header, { Size = UDim2.new(0, 32, 0, 32),
 local title = create("TextLabel", header, { Size = UDim2.new(1, -160, 0, 24), Position = UDim2.new(0, 50, 0, 8), Text = "INSPECIONADOR DE AVATAR V1 SPANW", TextColor3 = C_TEXT, Font = ARCADE_FONT, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left, BackgroundTransparency = 1, ZIndex = 102 })
 local subTitle = create("TextLabel", header, { Size = UDim2.new(1, -160, 0, 16), Position = UDim2.new(0, 50, 0, 28), Text = "LISTA DE JOGADORES • PESQUISE E SELECIONE", TextColor3 = Color3.fromRGB(180, 180, 180), Font = ARCADE_FONT, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left, BackgroundTransparency = 1, ZIndex = 102 })
 
+-- Botão 3D Vision Mode (Fica no topo da tela de detalhes)
+local toggle3DBtn = create("TextButton", header, { Size = UDim2.new(0, 150, 0, 22), Position = UDim2.new(0, 50, 0, 28), BackgroundColor3 = C_BG, Text = "3D VISION MODE ( OFF )", TextColor3 = C_TEXT, Font = ARCADE_FONT, TextSize = 10, Visible = false, ZIndex = 110 }, 4, C_BORDER, 1)
+
 local function createHeaderBtn(img, offset, visible)
     return create("ImageButton", header, { Size = UDim2.new(0, 32, 0, 32), Position = UDim2.new(1, offset, 0, 10), BackgroundTransparency = 1, Image = "rbxassetid://"..img, ScaleType = Enum.ScaleType.Fit, Visible = visible, ZIndex = 104 })
 end
@@ -69,10 +72,10 @@ local folderTabBtn = createHeaderBtn("76429920789174", -80, true)
 local saveSkinBtn = createHeaderBtn("124334702798776", -80, false)
 local databaseReturnBtn = createHeaderBtn("107874661558482", -80, false)
 
--- PESQUISA (Aba Players / Database)
+-- PESQUISA
 local searchContainer = create("Frame", main, { Size = UDim2.new(1, -24, 0, 34), Position = UDim2.new(0, 12, 0, 60), BackgroundColor3 = C_DARK, ZIndex = 102 }, 8, Color3.fromRGB(60, 60, 60), 1)
 local searchIcon = create("ImageLabel", searchContainer, { Size = UDim2.new(0, 16, 0, 16), Position = UDim2.new(0, 8, 0.5, -8), BackgroundTransparency = 1, Image = "rbxassetid://6031094678", ImageColor3 = Color3.fromRGB(150,150,150), ZIndex = 103 })
-local searchBox = create("TextBox", searchContainer, { Size = UDim2.new(1, -60, 1, 0), Position = UDim2.new(0, 30, 0, 0), BackgroundTransparency = 1, Text = "", PlaceholderText = "Digite o nome...", TextColor3 = C_TEXT, PlaceholderColor3 = Color3.fromRGB(130, 130, 130), Font = ARCADE_FONT, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, ClearTextOnFocus = false, ZIndex = 103 })
+local searchBox = create("TextBox", searchContainer, { Size = UDim2.new(1, -60, 1, 0), Position = UDim2.new(0, 30, 0, 0), BackgroundTransparency = 1, Text = "", PlaceholderText = "Buscar por nome...", TextColor3 = C_TEXT, PlaceholderColor3 = Color3.fromRGB(130, 130, 130), Font = ARCADE_FONT, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Left, ClearTextOnFocus = false, ZIndex = 103 })
 local searchClearBtn = create("TextButton", searchContainer, { Size = UDim2.new(0, 25, 1, 0), Position = UDim2.new(1, -25, 0, 0), BackgroundTransparency = 1, Text = "X", TextColor3 = Color3.fromRGB(180, 180, 180), Font = ARCADE_FONT, TextSize = 14, ZIndex = 103 })
 
 -- LISTAS
@@ -91,7 +94,7 @@ local confirmBtn = create("TextButton", confirmGui, { Size = UDim2.new(1, -30, 0
 local cancelBtn = create("TextButton", confirmGui, { Size = UDim2.new(1, -30, 0, 40), Position = UDim2.new(0, 15, 0, 120), BackgroundTransparency = 1, Text = "CANCELAR", TextColor3 = C_TEXT, Font = ARCADE_FONT, TextSize = 16, ZIndex = 2002 })
 
 local renameGui = create("Frame", sg, { Size = UDim2.new(0, 260, 0, 150), Position = UDim2.new(0.5, -130, 0.5, -75), BackgroundColor3 = C_DARK, Visible = false, ZIndex = 3000 }, 8, C_BORDER, 2)
-create("TextLabel", renameGui, { Size = UDim2.new(1, 0, 0, 35), Text = "NOVO NOME DA SKIN:", TextColor3 = C_TEXT, Font = ARCADE_FONT, TextSize = 14, BackgroundTransparency = 1, ZIndex = 3001 })
+create("TextLabel", renameGui, { Size = UDim2.new(1, 0, 0, 35), Text = "NOME DA SKIN:", TextColor3 = C_TEXT, Font = ARCADE_FONT, TextSize = 14, BackgroundTransparency = 1, ZIndex = 3001 })
 local renameInput = create("TextBox", renameGui, { Size = UDim2.new(1, -30, 0, 35), Position = UDim2.new(0, 15, 0, 45), BackgroundColor3 = Color3.fromRGB(25, 25, 25), Text = "", TextColor3 = C_TEXT, Font = Enum.Font.GothamBold, TextSize = 13, ClearTextOnFocus = false, ZIndex = 3001 }, 4)
 local renameConfirmBtn = create("TextButton", renameGui, { Size = UDim2.new(0, 105, 0, 35), Position = UDim2.new(0, 15, 0, 100), BackgroundColor3 = C_PURPLE, Text = "CONFIRMAR", TextColor3 = C_TEXT, Font = ARCADE_FONT, TextSize = 12, ZIndex = 3001 }, 4)
 local renameCancelBtn = create("TextButton", renameGui, { Size = UDim2.new(0, 105, 0, 35), Position = UDim2.new(1, -120, 0, 100), BackgroundColor3 = Color3.fromRGB(30, 30, 30), Text = "CANCELAR", TextColor3 = C_TEXT, Font = ARCADE_FONT, TextSize = 12, ZIndex = 3001 }, 4)
@@ -106,14 +109,17 @@ local function updateVisibility()
     databaseReturnBtn.Visible = not isDetail and not isPlayers
     saveSkinBtn.Visible = isDetail and isPlayers
     footerDatabaseReturnBtn.Visible = not isDetail and not isPlayers
-    searchContainer.Visible = not isDetail
     
     if isDetail then
         listPage.Visible = false
+        searchContainer.Visible = false
+        toggle3DBtn.Visible = true
+        subTitle.Visible = false
     else
         listPage.Visible = true
-        listPage.Position = UDim2.new(0, 12, 0, 100)
-        listPage.Size = UDim2.new(1, -24, 1, -115)
+        searchContainer.Visible = true
+        toggle3DBtn.Visible = false
+        subTitle.Visible = true
     end
 end
 
@@ -400,6 +406,7 @@ local hoverName = create("TextLabel", hoverPreview, {
 
 local previewToken = 0
 local previewModel, previewViewport, previewConnection = nil, nil, nil
+local is3DModeActive = false
 
 local function stopHoverPreview()
     previewToken += 1
@@ -477,6 +484,22 @@ local function showHoverPreview(raw, displayName, rigType, userId)
     end)
 end
 
+-- Botão Toggle 3D
+toggle3DBtn.MouseButton1Click:Connect(function()
+    is3DModeActive = not is3DModeActive
+    if is3DModeActive then
+        toggle3DBtn.Text = "3D VISION MODE ( ON )"
+        toggle3DBtn.TextColor3 = C_PURPLE
+        if currentInspectedData then
+            showHoverPreview(currentInspectedData, currentInspectedName, detectRigTypeFromRaw(currentInspectedData), currentInspectedData.UserId)
+        end
+    else
+        toggle3DBtn.Text = "3D VISION MODE ( OFF )"
+        toggle3DBtn.TextColor3 = C_TEXT
+        stopHoverPreview()
+    end
+end)
+
 -- ============================================================
 -- WEAR REMOTE ORIGINAL (MÉTODO ANTIGO, PACIENTE E CONFIÁVEL)
 -- ============================================================
@@ -532,8 +555,15 @@ local function displayAvatarData(name, data)
     if not data then return end
     listPage.Visible, detailPage.Visible = false, true
     title.Text, currentInspectedName, currentInspectedData = "INSPECIONANDO: " .. name:upper(), name, data
-    subTitle.Text = "DETALHES DO AVATAR"
     updateVisibility()
+    
+    -- Verifica se o modo 3D está ativo no momento
+    if is3DModeActive then
+        showHoverPreview(data, name, detectRigTypeFromRaw(data), data.UserId)
+    else
+        stopHoverPreview()
+    end
+
     for _, v in pairs(gridScroll:GetChildren()) do if v:IsA("TextButton") then v:Destroy() end end
     createCard(data.Shirt, "Camisa") createCard(data.Pants, "Calça") createCard(data.Face, "Rosto")
     for part, id in pairs(data.BodyParts or {}) do createCard(id, part) end
@@ -584,7 +614,10 @@ local function updatePlayerList()
             local camBtn = create("ImageButton", cardBtn, { Size = UDim2.new(0, 24, 0, 24), Position = UDim2.new(1, -34, 0.5, -12), BackgroundTransparency = 1, Image = "rbxassetid://131196469256282", ScaleType = Enum.ScaleType.Fit, ZIndex = 106 })
             camBtn.MouseButton1Click:Connect(function()
                 local raw = buildRawFromPlayer()
-                if raw then showHoverPreview(raw, p.DisplayName, detectRigType(p), p.UserId) end
+                if raw then 
+                    displayAvatarData(p.Name, raw)
+                    if not is3DModeActive then toggle3DBtn.MouseButton1Click() end
+                end
             end)
         end
     end
@@ -596,6 +629,9 @@ searchBox:GetPropertyChangedSignal("Text"):Connect(function()
 end)
 searchClearBtn.MouseButton1Click:Connect(function() searchBox.Text = "" end)
 
+-- ============================================================
+-- LISTA DE SKINS SALVAS (NOVO DESIGN DA IMAGEM 1)
+-- ============================================================
 updateSavedList = function()
     clearList() 
     local saved = {} 
@@ -616,24 +652,20 @@ updateSavedList = function()
         local item = saved[uniqueId]
         local itemName = tostring(item.Name or "")
         
-        -- Filtro de busca
         if filterText == "" or itemName:lower():find(filterText, 1, true) then
-            -- Card UI Estilizado (igual ao da segunda imagem)
-            local container = create("Frame", listPage, { Size = UDim2.new(1, -8, 0, 48), BackgroundColor3 = C_DARK, ZIndex = 104 }, 8, C_BORDER, 2)
+            -- Container principal da Skin
+            local container = create("Frame", listPage, { Size = UDim2.new(1, -8, 0, 48), BackgroundColor3 = C_BG, ZIndex = 104 }, 0)
             
-            -- Ícone do Bonequinho
-            create("ImageLabel", container, { Size = UDim2.new(0, 24, 0, 24), Position = UDim2.new(0, 10, 0.5, -12), BackgroundTransparency = 1, Image = "rbxassetid://92027896399298", ScaleType = Enum.ScaleType.Fit, ZIndex = 105 })
-            
-            -- Nome da Skin
-            local b = create("TextButton", container, { Size = UDim2.new(1, -190, 1, 0), Position = UDim2.new(0, 42, 0, 0), BackgroundTransparency = 1, Text = itemName, TextColor3 = C_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 13, ZIndex = 105 })
+            -- Nome da Skin Grande
+            local b = create("TextButton", container, { Size = UDim2.new(1, -150, 1, 0), Position = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 1, Text = itemName, TextColor3 = C_TEXT, TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 15, ZIndex = 105 })
             b.MouseButton1Click:Connect(function() displayAvatarData(itemName, item.Data) end)
 
             local userIdForPreview = item.Data and item.Data.UserId
 
-            -- 1. Botão COPY (Roxo)
-            local copySkinBtn = create("TextButton", container, { Size = UDim2.new(0, 70, 0, 30), Position = UDim2.new(1, -160, 0.5, -15), BackgroundColor3 = C_BTN, Text = "", ZIndex = 106 }, 6, Color3.fromRGB(60, 60, 60), 1)
-            create("ImageLabel", copySkinBtn, { Size = UDim2.new(0, 14, 0, 14), Position = UDim2.new(0, 8, 0.5, -7), BackgroundTransparency = 1, Image = "rbxassetid://133764834615931", ImageColor3 = C_PURPLE, ZIndex = 107 })
-            create("TextLabel", copySkinBtn, { Size = UDim2.new(1, -26, 1, 0), Position = UDim2.new(0, 26, 0, 0), BackgroundTransparency = 1, Text = "COPY", TextColor3 = C_PURPLE, Font = Enum.Font.Arcade, TextSize = 12, TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 107 })
+            -- 1. Botão COPY (Roxo Neon)
+            local copySkinBtn = create("TextButton", container, { Size = UDim2.new(0, 46, 0, 46), Position = UDim2.new(1, -150, 0.5, -23), BackgroundColor3 = C_BG, Text = "", ZIndex = 106 }, 4, C_BORDER, 2)
+            create("ImageLabel", copySkinBtn, { Size = UDim2.new(0, 24, 0, 24), Position = UDim2.new(0.5, -12, 0, 2), BackgroundTransparency = 1, Image = "rbxassetid://133764834615931", ImageColor3 = C_PURPLE, ZIndex = 107 })
+            create("TextLabel", copySkinBtn, { Size = UDim2.new(1, 0, 0, 14), Position = UDim2.new(0, 0, 1, -16), BackgroundTransparency = 1, Text = "COPY", TextColor3 = C_PURPLE, Font = Enum.Font.Arcade, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Center, ZIndex = 107 })
             
             copySkinBtn.MouseButton1Click:Connect(function()
                 local origColor = copySkinBtn.BackgroundColor3
@@ -645,18 +677,12 @@ updateSavedList = function()
             end)
 
             -- 2. Botão EDITAR
-            local editBtn = create("ImageButton", container, { Size = UDim2.new(0, 30, 0, 30), Position = UDim2.new(1, -84, 0.5, -15), BackgroundColor3 = C_BTN, Image = "rbxassetid://105157650009654", ImageColor3 = C_TEXT, ScaleType = Enum.ScaleType.Fit, ZIndex = 106 }, 6, Color3.fromRGB(60, 60, 60), 1)
+            local editBtn = create("ImageButton", container, { Size = UDim2.new(0, 46, 0, 46), Position = UDim2.new(1, -96, 0.5, -23), BackgroundColor3 = C_BG, Image = "rbxassetid://105157650009654", ImageColor3 = C_TEXT, ScaleType = Enum.ScaleType.Fit, ZIndex = 106 }, 4, C_BORDER, 2)
             editBtn.MouseButton1Click:Connect(function() activeRenameId, renameInput.Text, renameGui.Visible = uniqueId, itemName, true end)
 
             -- 3. Botão EXCLUIR
-            local delBtn = create("ImageButton", container, { Size = UDim2.new(0, 30, 0, 30), Position = UDim2.new(1, -48, 0.5, -15), BackgroundColor3 = C_BTN, Image = "rbxassetid://98235327129327", ImageColor3 = C_TEXT, ScaleType = Enum.ScaleType.Fit, ZIndex = 106 }, 6, Color3.fromRGB(60, 60, 60), 1)
+            local delBtn = create("ImageButton", container, { Size = UDim2.new(0, 46, 0, 46), Position = UDim2.new(1, -42, 0.5, -23), BackgroundColor3 = C_BG, Image = "rbxassetid://98235327129327", ImageColor3 = C_TEXT, ScaleType = Enum.ScaleType.Fit, ZIndex = 106 }, 4, C_BORDER, 2)
             delBtn.MouseButton1Click:Connect(function() modifyFile(function(f) f[uniqueId] = nil end) updateSavedList() end)
-
-            -- 4. Botão 3D
-            local view3dBtn = create("ImageButton", container, { Size = UDim2.new(0, 30, 0, 30), Position = UDim2.new(1, -12, 0.5, -15), BackgroundColor3 = C_BTN, Image = "rbxassetid://130210093071386", ImageColor3 = C_TEXT, ScaleType = Enum.ScaleType.Fit, ZIndex = 106 }, 6, C_PURPLE, 1)
-            view3dBtn.MouseButton1Click:Connect(function()
-                showHoverPreview(item.Data, itemName, detectRigTypeFromRaw(item.Data), userIdForPreview)
-            end)
         end
     end
 end
@@ -678,19 +704,20 @@ end
 local function returnToMainPlayers()
     currentTab = "Players"
     title.Text = "INSPECIONADOR DE AVATAR V1 SPANW"
-    subTitle.Text = "LISTA DE JOGADORES • PESQUISE E SELECIONE"
     detailPage.Visible = false
     listPage.Visible = true
     updatePlayerList()
     updateVisibility()
+    stopHoverPreview()
 end
 
 bk.MouseButton1Click:Connect(function()
     detailPage.Visible = false listPage.Visible = true
+    stopHoverPreview()
     if currentTab == "Players" then
-        title.Text = "INSPECIONADOR DE AVATAR V1 SPANW" subTitle.Text = "LISTA DE JOGADORES • PESQUISE E SELECIONE" updatePlayerList()
+        title.Text = "INSPECIONADOR DE AVATAR V1 SPANW" updatePlayerList()
     else
-        title.Text = "Skin Storage INSPECTION" subTitle.Text = "AVATARES SALVOS" updateSavedList()
+        title.Text = "Skin Storage INSPECTION" updateSavedList()
     end
     updateVisibility()
 end)
@@ -704,23 +731,38 @@ renameCancelBtn.MouseButton1Click:Connect(function() renameGui.Visible = false a
 renameConfirmBtn.MouseButton1Click:Connect(function()
     if activeRenameId and renameInput.Text ~= "" then
         modifyFile(function(f) if f[activeRenameId] then f[activeRenameId].Name = renameInput.Text end end)
-        renameGui.Visible, activeRenameId = false, nil updateSavedList()
+        renameGui.Visible, activeRenameId = false, nil 
+        updateSavedList()
     end
 end)
 
 folderTabBtn.MouseButton1Click:Connect(function()
     currentTab = "Database"
     title.Text = "Skin Storage INSPECTION"
-    subTitle.Text = "AVATARES SALVOS"
+    stopHoverPreview()
     migrateOldSkinsOnce()
     updateSavedList()
     updateVisibility()
 end)
 
+-- Ajuste: Ao clicar em Salvar, abre a janela de renomear para nomear na hora
 saveSkinBtn.MouseButton1Click:Connect(function()
     if currentInspectedData and currentInspectedName ~= "" then
-        modifyFile(function(f) f[HttpService:GenerateGUID(false)] = { Name = currentInspectedName, Data = currentInspectedData } end)
+        local newGuid = HttpService:GenerateGUID(false)
+        modifyFile(function(f) 
+            f[newGuid] = { Name = currentInspectedName, Data = currentInspectedData } 
+        end)
+        
+        -- Retorna para a lista de players e abre a caixa de renomear com o nome padrão
         returnToMainPlayers()
+        activeRenameId = newGuid
+        renameInput.Text = currentInspectedName
+        renameGui.Visible = true
+        
+        -- Muda para a aba de Database para o usuário ver a skin salva
+        currentTab = "Database"
+        title.Text = "Skin Storage INSPECTION"
+        updateSavedList()
     end
 end)
 
@@ -754,7 +796,7 @@ UserInputService.InputEnded:Connect(function(i)
 end)
 
 launcher.Parent, main.Visible = sg, false
-currentTab, title.Text, subTitle.Text, detailPage.Visible, listPage.Visible = "Players", "INSPECIONADOR DE AVATAR V1 SPANW", "LISTA DE JOGADORES • PESQUISE E SELECIONE", false, true
+currentTab, title.Text, detailPage.Visible, listPage.Visible = "Players", "INSPECIONADOR DE AVATAR V1 SPANW", false, true
 updatePlayerList()
 
 --------------------------------------------------

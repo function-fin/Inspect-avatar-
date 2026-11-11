@@ -306,7 +306,7 @@ local function buildPreviewTemplate(raw, rigType, cacheKey)
     return model
 end
 
--- UI DO PREVIEW 3D (Ajustes visuais aplicados aqui)
+-- UI DO PREVIEW 3D
 local hoverPreview = create("Frame", sg, {
     Name = "AvatarHoverPreview",
     Size = UDim2.new(0, 220, 0, 280),
@@ -320,27 +320,22 @@ local hoverPreview = create("Frame", sg, {
 local hoverTitle = create("TextLabel", hoverPreview, {
     Size = UDim2.new(1, -16, 0, 24), Position = UDim2.new(0, 8, 0, 8),
     BackgroundTransparency = 1, Text = "3D Viewing Mode",
-    TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.GothamBlack, TextSize = 16, -- Fonte mais espessa para imitar a imagem
+    TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.GothamBlack, TextSize = 16,
     TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 1502,
 })
 
--- Adicionando borda branca tracejada (estilo da imagem) ao redor da skin
+-- Vitrine com a borda branca fina e arredondada correta
 local hoverViewportHolder = create("Frame", hoverPreview, {
     Size = UDim2.new(1, -16, 1, -70), Position = UDim2.new(0, 8, 0, 34),
     BackgroundColor3 = Color3.fromRGB(15, 15, 15), BorderSizePixel = 0, ClipsDescendants = true,
     ZIndex = 1501,
-}, 6) -- Removi a borda cinza antiga
-
--- Criando uma moldura branca espessa e tracejada com ImageLabel para simular a borda da imagem
-local frameOutline = create("ImageLabel", hoverViewportHolder, {
-    Size = UDim2.new(1, 8, 1, 8), Position = UDim2.new(0, -4, 0, -4),
-    BackgroundTransparency = 1,
-    Image = "rbxassetid://131196469256282", -- Usando um asset de borda tracejada genérica
-    ImageColor3 = Color3.fromRGB(255, 255, 255),
-    ScaleType = Enum.ScaleType.Slice,
-    SliceCenter = Rect.new(4, 4, 12, 12),
-    ZIndex = 1502
 })
+-- Aplicando a borda branca na vitrine (sem ícones, apenas a linha da borda)
+Instance.new("UICorner", hoverViewportHolder).CornerRadius = UDim.new(0, 6)
+local vpStroke = Instance.new("UIStroke", hoverViewportHolder)
+vpStroke.Color = Color3.fromRGB(255, 255, 255)
+vpStroke.Thickness = 2.5
+vpStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
 local hoverStatus = create("TextLabel", hoverViewportHolder, {
     Size = UDim2.new(1, -12, 1, -12), Position = UDim2.new(0, 6, 0, 6),
@@ -372,7 +367,6 @@ end
 
 local function createViewport(parent)
     local old = parent:FindFirstChild("Preview") if old then old:Destroy() end
-    -- O viewport fica com ZIndex 1502 para ficar acima da moldura tracejada
     local vp = create("ViewportFrame", parent, { Name = "Preview", Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 1501 })
     local wm = create("WorldModel", vp, {})
     local cam = create("Camera", vp, { FieldOfView = 30 })
@@ -455,7 +449,7 @@ visionToggleBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ============================================================
--- FECHAR PREVIEW 3D AO CLICAR FORA (via UserInputService)
+-- FECHAR PREVIEW 3D AO CLICAR FORA
 -- ============================================================
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end

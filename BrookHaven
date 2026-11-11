@@ -71,18 +71,10 @@ create("UIListLayout", listPage, { Padding = UDim.new(0, 8), SortOrder = Enum.So
 
 local detailPage = create("Frame", main, { Size = UDim2.new(1, 0, 1, -50), Position = UDim2.new(0, 0, 0, 50), BackgroundTransparency = 1, Visible = false, ZIndex = 102 })
 
--- Botão 3D Vision Mode — Borda branca correta envolvendo o botão inteiro
-local visionToggleBtn = create("TextButton", detailPage, {
-    Size = UDim2.new(0, 140, 0, 24),
-    Position = UDim2.new(1, -150, 0, 2),
-    BackgroundColor3 = Color3.fromRGB(15, 15, 15),
-    Text = "3D vision mode ( Off )",
-    TextColor3 = Color3.fromRGB(255, 255, 255),
-    Font = ARCADE_FONT,
-    TextSize = 10,
-    ZIndex = 110,
-    AutoButtonColor = false,
-}, 4, Color3.fromRGB(255, 255, 255), 1.5) -- Borda branca aplicada ao BOTÃO com cantos arredondados
+-- Botão 3D Vision Mode (Borda branca no botão inteiro, não no texto)
+local visionToggleBtn = create("TextButton", detailPage, { Size = UDim2.new(0, 140, 0, 24), Position = UDim2.new(1, -150, 0, 2), BackgroundColor3 = Color3.fromRGB(15, 15, 15), Text = "3D vision mode ( Off )", TextColor3 = Color3.fromRGB(255, 255, 255), Font = ARCADE_FONT, TextSize = 10, ZIndex = 110, AutoButtonColor = false })
+create("UICorner", visionToggleBtn, { CornerRadius = UDim.new(0, 4) })
+create("UIStroke", visionToggleBtn, { Color = Color3.fromRGB(255, 255, 255), Thickness = 1.5 }) -- Borda no botão (fundo preto)
 visionToggleBtn.Visible = false
 
 local gridScroll = create("ScrollingFrame", detailPage, { Size = UDim2.new(1, -20, 1, -65), Position = UDim2.new(0, 10, 0, 30), BackgroundTransparency = 1, BorderSizePixel = 0, VerticalScrollBarInset = Enum.ScrollBarInset.None, ScrollBarThickness = 3, ScrollBarImageColor3 = Color3.fromRGB(255, 255, 255), ZIndex = 103, AutomaticCanvasSize = Enum.AutomaticSize.Y })
@@ -434,14 +426,13 @@ visionToggleBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ============================================================
--- FECHAR PREVIEW 3D AO CLICAR FORA (via UserInputService, sem overlay bloqueante)
+-- FECHAR PREVIEW 3D AO CLICAR FORA (via UserInputService)
 -- ============================================================
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     if not isVisionModeOn then return end
     if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
     
-    -- Verifica se o clique foi fora do preview 3D e fora da main
     local mousePos = input.Position
     local function isInside(guiObject)
         if not guiObject or not guiObject.Visible then return false end
@@ -589,7 +580,7 @@ updateSavedList = function()
 
     local sortedKeys = {}
     for k in pairs(saved) do table.insert(sortedKeys, k) end
-    -- Ordem: mais recente no topo (GUID decrescente = mais novo primeiro)
+    -- Ordem: mais recente no topo
     table.sort(sortedKeys, function(a, b) return a > b end)
 
     local filterText = searchBox.Text:lower()
@@ -604,13 +595,14 @@ updateSavedList = function()
             local b = create("TextButton", container, { Size = UDim2.new(1, -160, 1, 0), BackgroundTransparency = 1, Text = "  " .. itemName, TextColor3 = Color3.fromRGB(255, 255, 255), TextXAlignment = Enum.TextXAlignment.Left, Font = Enum.Font.GothamBold, TextSize = 14, ZIndex = 105 })
             b.MouseButton1Click:Connect(function() displayAvatarData(itemName, item.Data) end)
 
-            local copySkinBtn = create("ImageButton", container, { Size = UDim2.new(0, 34, 0, 34), Position = UDim2.new(1, -125, 0.5, -17), BackgroundColor3 = Color3.fromRGB(25, 25, 25), Image = "rbxassetid://133764834615931", ScaleType = Enum.ScaleType.Fit, ZIndex = 106 }, 6, Color3.fromRGB(255, 255, 255), 2)
+            -- Botões de ação (Copy, Editar, Deletar) SEM fundo e SEM borda (apenas o ícone limpo)
+            local copySkinBtn = create("ImageButton", container, { Size = UDim2.new(0, 34, 0, 34), Position = UDim2.new(1, -125, 0.5, -17), BackgroundTransparency = 1, Image = "rbxassetid://133764834615931", ScaleType = Enum.ScaleType.Fit, ZIndex = 106 })
             copySkinBtn.MouseButton1Click:Connect(function() task.spawn(clonarSkinBrookhaven, item.Data) end)
 
-            local editBtn = create("ImageButton", container, { Size = UDim2.new(0, 34, 0, 34), Position = UDim2.new(1, -80, 0.5, -17), BackgroundColor3 = Color3.fromRGB(25, 25, 25), Image = "rbxassetid://105157650009654", ScaleType = Enum.ScaleType.Fit, ZIndex = 106 }, 6, Color3.fromRGB(255, 255, 255), 2)
+            local editBtn = create("ImageButton", container, { Size = UDim2.new(0, 34, 0, 34), Position = UDim2.new(1, -80, 0.5, -17), BackgroundTransparency = 1, Image = "rbxassetid://105157650009654", ScaleType = Enum.ScaleType.Fit, ZIndex = 106 })
             editBtn.MouseButton1Click:Connect(function() activeRenameId, renameInput.Text, renameTitle.Text, renameGui.Visible = uniqueId, itemName, "NOVO NOME DA SKIN:", true end)
 
-            local delBtn = create("ImageButton", container, { Size = UDim2.new(0, 34, 0, 34), Position = UDim2.new(1, -35, 0.5, -17), BackgroundColor3 = Color3.fromRGB(25, 25, 25), Image = "rbxassetid://98235327129327", ScaleType = Enum.ScaleType.Fit, ZIndex = 106 }, 6, Color3.fromRGB(255, 255, 255), 2)
+            local delBtn = create("ImageButton", container, { Size = UDim2.new(0, 34, 0, 34), Position = UDim2.new(1, -35, 0.5, -17), BackgroundTransparency = 1, Image = "rbxassetid://98235327129327", ScaleType = Enum.ScaleType.Fit, ZIndex = 106 })
             delBtn.MouseButton1Click:Connect(function() modifyFile(function(f) f[uniqueId] = nil end) updateSavedList() end)
         end
     end

@@ -306,7 +306,7 @@ local function buildPreviewTemplate(raw, rigType, cacheKey)
     return model
 end
 
--- UI DO PREVIEW 3D FIXO
+-- UI DO PREVIEW 3D (Ajustes visuais aplicados aqui)
 local hoverPreview = create("Frame", sg, {
     Name = "AvatarHoverPreview",
     Size = UDim2.new(0, 220, 0, 280),
@@ -316,18 +316,31 @@ local hoverPreview = create("Frame", sg, {
     ZIndex = 1500,
 }, 8, Color3.fromRGB(255, 255, 255), 3)
 
+-- Título alterado para "3D Viewing Mode"
 local hoverTitle = create("TextLabel", hoverPreview, {
     Size = UDim2.new(1, -16, 0, 24), Position = UDim2.new(0, 8, 0, 8),
-    BackgroundTransparency = 1, Text = "Preview 3D",
-    TextColor3 = Color3.fromRGB(255, 255, 255), Font = ARCADE_FONT, TextSize = 16,
+    BackgroundTransparency = 1, Text = "3D Viewing Mode",
+    TextColor3 = Color3.fromRGB(255, 255, 255), Font = Enum.Font.GothamBlack, TextSize = 16, -- Fonte mais espessa para imitar a imagem
     TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 1502,
 })
 
+-- Adicionando borda branca tracejada (estilo da imagem) ao redor da skin
 local hoverViewportHolder = create("Frame", hoverPreview, {
     Size = UDim2.new(1, -16, 1, -70), Position = UDim2.new(0, 8, 0, 34),
     BackgroundColor3 = Color3.fromRGB(15, 15, 15), BorderSizePixel = 0, ClipsDescendants = true,
     ZIndex = 1501,
-}, 6, Color3.fromRGB(60,60,60), 1)
+}, 6) -- Removi a borda cinza antiga
+
+-- Criando uma moldura branca espessa e tracejada com ImageLabel para simular a borda da imagem
+local frameOutline = create("ImageLabel", hoverViewportHolder, {
+    Size = UDim2.new(1, 8, 1, 8), Position = UDim2.new(0, -4, 0, -4),
+    BackgroundTransparency = 1,
+    Image = "rbxassetid://131196469256282", -- Usando um asset de borda tracejada genérica
+    ImageColor3 = Color3.fromRGB(255, 255, 255),
+    ScaleType = Enum.ScaleType.Slice,
+    SliceCenter = Rect.new(4, 4, 12, 12),
+    ZIndex = 1502
+})
 
 local hoverStatus = create("TextLabel", hoverViewportHolder, {
     Size = UDim2.new(1, -12, 1, -12), Position = UDim2.new(0, 6, 0, 6),
@@ -359,7 +372,8 @@ end
 
 local function createViewport(parent)
     local old = parent:FindFirstChild("Preview") if old then old:Destroy() end
-    local vp = create("ViewportFrame", parent, { Name = "Preview", Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = parent.ZIndex + 1 })
+    -- O viewport fica com ZIndex 1502 para ficar acima da moldura tracejada
+    local vp = create("ViewportFrame", parent, { Name = "Preview", Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, BorderSizePixel = 0, ZIndex = 1501 })
     local wm = create("WorldModel", vp, {})
     local cam = create("Camera", vp, { FieldOfView = 30 })
     vp.CurrentCamera = cam
@@ -516,11 +530,9 @@ local function clonarSkinBrookhaven(skinData)
     if skinData.Animations then for animName, animId in pairs(skinData.Animations) do if animId and tonumber(animId) ~= 0 then pcall(function() wearRemote:InvokeServer(tonumber(animId)) end) task.wait(0.9) end end end
 end
 
--- AQUI FOI A ÚNICA ALTERAÇÃO: Removida a diferenciação de cor para animações
 local function createCard(id, defName)
     if not id or tostring(id) == "0" or id == "" then return end
     
-    -- Agora todos os cards usam a mesma cor de fundo e borda
     local card = create("TextButton", gridScroll, { 
         BackgroundColor3 = Color3.fromRGB(15, 15, 15), 
         Text = "", 
@@ -711,7 +723,7 @@ UserInputService.InputEnded:Connect(function(i)
             else
                 stopHoverPreview()
             end
-            confirmGui.Visible, confirmGui.Visible = false, false
+            confirmGui.Visible, renameGui.Visible = false, false
         end
     end
 end)
